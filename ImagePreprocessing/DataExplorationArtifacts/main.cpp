@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <math.h>
 #include <librealsense2/rs.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -26,58 +27,85 @@ bool equal(const cv::Mat & a, const cv::Mat & b)
  *              depending on the value of total number of images).
  * @return new composite image.
  */
-    cv::Mat makeCanvas(std::vector<cv::Mat>& vecMat, int windowHeight, int nRows) {
-            int N = vecMat.size();
-            nRows  = nRows > N ? N : nRows; 
-            int edgeThickness = 10;
-            int imagesPerRow = ceil(double(N) / nRows);
-            int resizeHeight = floor(2.0 * ((floor(double(windowHeight - edgeThickness) / nRows)) / 2.0)) - edgeThickness;
-            int maxRowLength = 0;
-
-            std::vector<int> resizeWidth;
-            for (int i = 0; i < N;) {
-                    int thisRowLen = 0;
-                    for (int k = 0; k < imagesPerRow; k++) {
-                            double aspectRatio = double(vecMat[i].cols) / vecMat[i].rows;
-                            int temp = int( ceil(resizeHeight * aspectRatio));
-                            resizeWidth.push_back(temp);
-                            thisRowLen += temp;
-                            if (++i == N) break;
-                    }
-                    if ((thisRowLen + edgeThickness * (imagesPerRow + 1)) > maxRowLength) {
-                            maxRowLength = thisRowLen + edgeThickness * (imagesPerRow + 1);
-                    }
-            }
-            int windowWidth = maxRowLength;
-            cv::Mat canvasImage(windowHeight, windowWidth, CV_8UC3, cv::Scalar(0, 0, 0));
-
-            for (int k = 0, i = 0; i < nRows; i++) {
-                    int y = i * resizeHeight + (i + 1) * edgeThickness;
-                    int x_end = edgeThickness;
-                    for (int j = 0; j < imagesPerRow && k < N; k++, j++) {
-                            int x = x_end;
-                            cv::Rect roi(x, y, resizeWidth[k], resizeHeight);
-                            cv::Size s = canvasImage(roi).size();
-                            // change the number of channels to three
-                            cv::Mat target_ROI(s, CV_8UC3);
-                            if (vecMat[k].channels() != canvasImage.channels()) {
-                                if (vecMat[k].channels() == 1) {
-                                    cv::cvtColor(vecMat[k], target_ROI, CV_GRAY2BGR);
-                                }
-                            } else {             
-                                vecMat[k].copyTo(target_ROI);
-                            }
-                            cv::resize(target_ROI, target_ROI, s);
-                            if (target_ROI.type() != canvasImage.type()) {
-                                target_ROI.convertTo(target_ROI, canvasImage.type());
-                            }
-                            target_ROI.copyTo(canvasImage(roi));
-                            x_end += resizeWidth[k] + edgeThickness;
-                    }
-            }
-            return canvasImage;
+cv::Mat makeCanvas(std::vector<cv::Mat>& vecMat, int windowHeight, int nRows) {
+    int N = vecMat.size();
+    nRows  = nRows > N ? N : nRows; 
+    int edgeThickness = 10;
+    int imagesPerRow = ceil(double(N) / nRows);
+    int resizeHeight = floor(2.0 * ((floor(double(windowHeight - edgeThickness) / nRows)) / 2.0)) - edgeThickness;
+    int maxRowLength = 0;
+    
+    std::vector<int> resizeWidth;
+    for (int i = 0; i < N;) {
+        int thisRowLen = 0;
+        for (int k = 0; k < imagesPerRow; k++) {
+            double aspectRatio = double(vecMat[i].cols) / vecMat[i].rows;
+            int temp = int( ceil(resizeHeight * aspectRatio));
+            resizeWidth.push_back(temp);
+            thisRowLen += temp;
+            if (++i == N) break;
+        }
+        if ((thisRowLen + edgeThickness * (imagesPerRow + 1)) > maxRowLength) {
+            maxRowLength = thisRowLen + edgeThickness * (imagesPerRow + 1);
+        }
     }
+    int windowWidth = maxRowLength;
+    cv::Mat canvasImage(windowHeight, windowWidth, CV_8UC3, cv::Scalar(0, 0, 0));
+    
+    for (int k = 0, i = 0; i < nRows; i++) {
+        int y = i * resizeHeight + (i + 1) * edgeThickness;
+        int x_end = edgeThickness;
+        for (int j = 0; j < imagesPerRow && k < N; k++, j++) {
+            int x = x_end;
+            cv::Rect roi(x, y, resizeWidth[k], resizeHeight);
+            cv::Size s = canvasImage(roi).size();
+            // change the number of channels to three
+            cv::Mat target_ROI(s, CV_8UC3);
+            if (vecMat[k].channels() != canvasImage.channels()) {
+                if (vecMat[k].channels() == 1) {
+                    cv::cvtColor(vecMat[k], target_ROI, CV_GRAY2BGR);
+                }
+            } else {             
+                vecMat[k].copyTo(target_ROI);
+            }
+            cv::resize(target_ROI, target_ROI, s);
+            if (target_ROI.type() != canvasImage.type()) {
+                target_ROI.convertTo(target_ROI, canvasImage.type());
+            }
+            target_ROI.copyTo(canvasImage(roi));
+            x_end += resizeWidth[k] + edgeThickness;
+        }
+    }
+    return canvasImage;
+}
 
+int CountArtifacts(cv::Mat& Image)
+{
+    if (Image.channels() == 0) return -1;
+    int AmountArtifacts = 0;
+    int Rows = Image.rows;
+    int Cols = Image.cols * Image.channels();
+    if (Image.isContinuous())
+    {
+        Cols *= Rows;
+        Rows = 1;
+    }
+    uchar* p;
+    for (int Row = 0; Row < Rows; ++Row)
+    {
+        p = Image.ptr<uchar>(Row);
+        for (int Col = 0; Col < Cols; Col+=3)
+        {
+            if (p[Col] == 0 && p[Col+1] == 0 && p[Col+2] == 0)
+            {
+                AmountArtifacts++;
+            }
+        }
+    }
+    return AmountArtifacts;
+}
+    
+    
 int main(int argc, char** argv)
 {
     if (argc < 3)
@@ -124,6 +152,9 @@ int main(int argc, char** argv)
     cv::Mat FirstImage;
     
     int FrameCount = 0;
+    float ArtifactsUnfiltered = 0.f;
+    float ArtifactsFiltered = 0.f;
+    float ArtifactsDoubleFiltered = 0.f;
     
     while(true)
     {
@@ -159,9 +190,13 @@ int main(int argc, char** argv)
                 std::cout << "Last frame detected. Stopping playback..." << std::endl;
                 FrameCount--;
                 bShouldPlayback = false;
+                break;
             }
             else
             {
+                ArtifactsUnfiltered += CountArtifacts(VisualizedImage);
+                ArtifactsFiltered += CountArtifacts(FilteredImage);
+                ArtifactsDoubleFiltered += CountArtifacts(DoubleFilteredImage);
                 std::vector<cv::Mat> Images {Image, VisualizedImage, FilteredImage, DoubleFilteredImage};
                 cv::Mat Canvas = makeCanvas(Images, 960, 2);
                 cv::imshow("Image", Canvas);
@@ -189,5 +224,16 @@ int main(int argc, char** argv)
     }
     
     std::cout << "#Frames: " << FrameCount << std::endl;
+    std::cout << "########## Artifacts Unfiltered ##########" << std::endl << std::endl;
+    std::cout << "Total: " << ArtifactsUnfiltered << std::endl;
+    std::cout << "Per frame: " << std::round(ArtifactsUnfiltered / FrameCount) << std::endl << std::endl;
+    std::cout << "########## Artifacts Filtered ##########" << std::endl << std::endl;
+    std::cout << "Total: " << ArtifactsFiltered << std::endl;
+    std::cout << "Per frame: " << std::round(ArtifactsFiltered / FrameCount) << std::endl << std::endl;
+    std::cout << "########## Artifacts Double Filtered ##########" << std::endl << std::endl;
+    std::cout << "Total: " << ArtifactsDoubleFiltered << std::endl;
+    std::cout << "Per frame: " << std::round(ArtifactsDoubleFiltered / FrameCount) << std::endl << std::endl;
+    std::cout << "########## Various ##########" << std::endl << std::endl;
+    std::cout << "Pixels per frame: " << 640 * 480 << std::endl;
     return 0;
 }
