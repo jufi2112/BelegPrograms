@@ -8,6 +8,19 @@
 #include <opencv2/imgproc.hpp>
 
 /**
+ * from https://www.geeksforgeeks.org/rounding-floating-point-number-two-decimal-places-c-c/
+ */
+float RoundTwoDecimals(float var) 
+{ 
+    // 37.66666 * 100 =3766.66 
+    // 3766.66 + .5 =37.6716    for rounding off value 
+    // then type cast to int so value is 3766 
+    // then divided by 100 so the value converted into 37.66 
+    float value = (int)(var * 10000 + .5); 
+    return (float)value / 10000; 
+} 
+
+/**
  * code by berak from https://stackoverflow.com/questions/23195522/opencv-fastest-method-to-check-if-two-images-are-100-same-or-not
  */
 bool equal(const cv::Mat & a, const cv::Mat & b)
@@ -110,7 +123,7 @@ int main(int argc, char** argv)
 {
     if (argc < 3)
     {
-        std::cout << "Too less arguments. Usage is: <filename> <filter option>" << std::endl;
+        std::cout << "Too few arguments. Usage is: <filename> <filter option>" << std::endl;
         return 0;
     }
     std::string Path = argv[1];
@@ -131,6 +144,8 @@ int main(int argc, char** argv)
     rs2::spatial_filter SpatialFilter;
     rs2::colorizer ColorMap;
     
+    rs2::align AlignToDepth(RS2_STREAM_DEPTH);
+    
     // configure filter parameters
     HoleFillingFilter.set_option(RS2_OPTION_HOLES_FILL, OptionHoleFilling);
     SpatialFilter.set_option(RS2_OPTION_FILTER_SMOOTH_ALPHA, 0.55f);
@@ -146,6 +161,7 @@ int main(int argc, char** argv)
     playback.set_real_time(false);
     
     rs2::frameset Frames;
+    rs2::frameset FramesAligned;
     cv::namedWindow("Image", CV_WINDOW_AUTOSIZE);
     //cv::namedWindow("Depth Image", CV_WINDOW_AUTOSIZE);
     //cv::namedWindow("Filtered Depth Image", CV_WINDOW_AUTOSIZE);
@@ -160,14 +176,19 @@ int main(int argc, char** argv)
     {
         if (pipe->poll_for_frames(&Frames) && bShouldPlayback)
         {
+            FramesAligned = AlignToDepth.process(Frames);
             FrameCount++;
             rs2::depth_frame DepthFrame = Frames.get_depth_frame();
             rs2::video_frame ColorFrame = Frames.get_color_frame();
+            rs2::video_frame ColorFrameAligned = FramesAligned.get_color_frame();
             
             const int DepthWidth = DepthFrame.as<rs2::video_frame>().get_width();
             const int DepthHeight = DepthFrame.as<rs2::video_frame>().get_height();
             const int ColorWidth = ColorFrame.get_width();
             const int ColorHeight = ColorFrame.get_height();
+            
+            const int AlignedWidth = ColorFrameAligned.get_width();
+            const int AlignedHeight = ColorFrameAligned.get_height();
             
             rs2::frame VisualizedDepthFrame = ColorMap.process(DepthFrame);
             //rs2::frame FilteredFrame = HoleFillingFilter.process(DepthFrame);
@@ -180,6 +201,7 @@ int main(int argc, char** argv)
             cv::Mat VisualizedImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)VisualizedDepthFrame.get_data(), cv::Mat::AUTO_STEP);
             cv::Mat FilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)FilteredVisualizedDepthFrame.get_data(), cv::Mat::AUTO_STEP);
             cv::Mat DoubleFilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)DoubleFilteredVisualizedDepthFrame.get_data(), cv::Mat::AUTO_STEP);
+            cv::Mat ImageAligned(cv::Size(AlignedWidth, AlignedHeight), CV_8UC3, (void*)ColorFrameAligned.get_data(), cv::Mat::AUTO_STEP);
             if (FrameCount == 1)
             {
                 Image.copyTo(FirstImage);
@@ -190,14 +212,13 @@ int main(int argc, char** argv)
                 std::cout << "Last frame detected. Stopping playback..." << std::endl;
                 FrameCount--;
                 bShouldPlayback = false;
-                break;
             }
             else
             {
                 ArtifactsUnfiltered += CountArtifacts(VisualizedImage);
                 ArtifactsFiltered += CountArtifacts(FilteredImage);
                 ArtifactsDoubleFiltered += CountArtifacts(DoubleFilteredImage);
-                std::vector<cv::Mat> Images {Image, VisualizedImage, FilteredImage, DoubleFilteredImage};
+                std::vector<cv::Mat> Images {Image, ImageAligned, VisualizedImage, FilteredImage, DoubleFilteredImage};
                 cv::Mat Canvas = makeCanvas(Images, 960, 2);
                 cv::imshow("Image", Canvas);
                 //cv::imshow("Depth Image", VisualizedImage);
@@ -222,18 +243,23 @@ int main(int argc, char** argv)
             break;
         }
     }
+    const int Pixels = 640 * 480;
     
     std::cout << "#Frames: " << FrameCount << std::endl;
     std::cout << "########## Artifacts Unfiltered ##########" << std::endl << std::endl;
     std::cout << "Total: " << ArtifactsUnfiltered << std::endl;
-    std::cout << "Per frame: " << std::round(ArtifactsUnfiltered / FrameCount) << std::endl << std::endl;
+    std::cout << "Per frame: " << std::round(ArtifactsUnfiltered / FrameCount) << std::endl;
+    std::cout << "Percent: " << RoundTwoDecimals(ArtifactsUnfiltered / (FrameCount * Pixels)) * 100 << std::endl << std::endl;
     std::cout << "########## Artifacts Filtered ##########" << std::endl << std::endl;
     std::cout << "Total: " << ArtifactsFiltered << std::endl;
-    std::cout << "Per frame: " << std::round(ArtifactsFiltered / FrameCount) << std::endl << std::endl;
+    std::cout << "Per frame: " << std::round(ArtifactsFiltered / FrameCount) << std::endl;
+    std::cout << "Percent: " << RoundTwoDecimals(ArtifactsFiltered / (FrameCount * Pixels)) * 100 << std::endl << std::endl;
     std::cout << "########## Artifacts Double Filtered ##########" << std::endl << std::endl;
     std::cout << "Total: " << ArtifactsDoubleFiltered << std::endl;
-    std::cout << "Per frame: " << std::round(ArtifactsDoubleFiltered / FrameCount) << std::endl << std::endl;
+    std::cout << "Per frame: " << std::round(ArtifactsDoubleFiltered / FrameCount) << std::endl;
+    std::cout << "Percent: " << RoundTwoDecimals(ArtifactsDoubleFiltered / (FrameCount * Pixels)) * 100 << std::endl << std::endl;
     std::cout << "########## Various ##########" << std::endl << std::endl;
-    std::cout << "Pixels per frame: " << 640 * 480 << std::endl;
+    std::cout << "Pixels per frame: " << Pixels << std::endl;
+    
     return 0;
 }
