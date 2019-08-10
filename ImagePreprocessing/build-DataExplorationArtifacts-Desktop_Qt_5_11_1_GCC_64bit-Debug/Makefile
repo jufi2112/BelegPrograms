@@ -50,8 +50,10 @@ OBJECTS_DIR   = ./
 
 ####### Files
 
-SOURCES       = ../DataExplorationArtifacts/main.cpp 
-OBJECTS       = main.o
+SOURCES       = ../DataExplorationArtifacts/main.cpp \
+		../DataExplorationArtifacts/artifactremover.cpp 
+OBJECTS       = main.o \
+		artifactremover.o
 DIST          = ../../../../Qt/5.11.1/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/common/unix.conf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/common/linux.conf \
@@ -221,6 +223,7 @@ DIST          = ../../../../Qt/5.11.1/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/qt_config.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/linux-g++/qmake.conf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/spec_post.prf \
+		../DataExplorationArtifacts/.qmake.stash \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/exclusive_builds.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/toolchain.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/default_pre.prf \
@@ -234,7 +237,8 @@ DIST          = ../../../../Qt/5.11.1/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/exceptions.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/yacc.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/lex.prf \
-		../DataExplorationArtifacts/DataExplorationArtifacts.pro  ../DataExplorationArtifacts/main.cpp
+		../DataExplorationArtifacts/DataExplorationArtifacts.pro artifactremover.h ../DataExplorationArtifacts/main.cpp \
+		../DataExplorationArtifacts/artifactremover.cpp
 QMAKE_TARGET  = DataExplorationArtifacts
 DESTDIR       = 
 TARGET        = DataExplorationArtifacts
@@ -415,6 +419,7 @@ Makefile: ../DataExplorationArtifacts/DataExplorationArtifacts.pro ../../../../Q
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/qt_config.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/linux-g++/qmake.conf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/spec_post.prf \
+		.qmake.stash \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/exclusive_builds.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/toolchain.prf \
 		../../../../Qt/5.11.1/gcc_64/mkspecs/features/default_pre.prf \
@@ -599,6 +604,7 @@ Makefile: ../DataExplorationArtifacts/DataExplorationArtifacts.pro ../../../../Q
 ../../../../Qt/5.11.1/gcc_64/mkspecs/features/qt_config.prf:
 ../../../../Qt/5.11.1/gcc_64/mkspecs/linux-g++/qmake.conf:
 ../../../../Qt/5.11.1/gcc_64/mkspecs/features/spec_post.prf:
+.qmake.stash:
 ../../../../Qt/5.11.1/gcc_64/mkspecs/features/exclusive_builds.prf:
 ../../../../Qt/5.11.1/gcc_64/mkspecs/features/toolchain.prf:
 ../../../../Qt/5.11.1/gcc_64/mkspecs/features/default_pre.prf:
@@ -656,8 +662,11 @@ compiler_clean:
 
 ####### Compile
 
-main.o: ../DataExplorationArtifacts/main.cpp 
+main.o: ../DataExplorationArtifacts/main.cpp ../DataExplorationArtifacts/artifactremover.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o main.o ../DataExplorationArtifacts/main.cpp
+
+artifactremover.o: ../DataExplorationArtifacts/artifactremover.cpp ../DataExplorationArtifacts/artifactremover.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o artifactremover.o ../DataExplorationArtifacts/artifactremover.cpp
 
 ####### Install
 

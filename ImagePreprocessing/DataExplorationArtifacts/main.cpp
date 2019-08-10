@@ -6,6 +6,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include "artifactremover.h"
 
 /**
  * from https://www.geeksforgeeks.org/rounding-floating-point-number-two-decimal-places-c-c/
@@ -145,6 +146,7 @@ int main(int argc, char** argv)
     rs2::colorizer ColorMap;
     
     rs2::align AlignToDepth(RS2_STREAM_DEPTH);
+    rs2::align AlignToColor(RS2_STREAM_COLOR);
     
     // configure filter parameters
     HoleFillingFilter.set_option(RS2_OPTION_HOLES_FILL, OptionHoleFilling);
@@ -162,6 +164,7 @@ int main(int argc, char** argv)
     
     rs2::frameset Frames;
     rs2::frameset FramesAligned;
+    rs2::frameset FramesAlignedToColor;
     cv::namedWindow("Image", CV_WINDOW_AUTOSIZE);
     //cv::namedWindow("Depth Image", CV_WINDOW_AUTOSIZE);
     //cv::namedWindow("Filtered Depth Image", CV_WINDOW_AUTOSIZE);
@@ -172,23 +175,48 @@ int main(int argc, char** argv)
     float ArtifactsFiltered = 0.f;
     float ArtifactsDoubleFiltered = 0.f;
     
+    // custom processing block
+    rs2::frame_queue Queue;
+    rs2::processing_block PB([](rs2::frame Frame, rs2::frame_source& src)
+    {
+        const int DWidth = Frame.as<rs2::video_frame>().get_width();
+        const int DHeight = Frame.as<rs2::video_frame>().get_height();
+        cv::Mat DepthImage(cv::Size(DWidth, DHeight), CV_16U, (void*)Frame.get_data(), cv::Mat::AUTO_STEP);
+        cv::Mat OwnFilteredImage;
+        
+        ArtifactRemover AR = ArtifactRemover();
+        AR.RecursiveMedianFilter(DepthImage, OwnFilteredImage, 2);
+        
+        // transform opencv mat back to rs2::frame
+        auto res = src.allocate_video_frame(Frame.get_profile(), Frame);
+        std::memcpy((void*)res.get_data(), OwnFilteredImage.data, DWidth * DHeight * 2);
+        src.frame_ready(res);
+    });
+    
+    PB.start(Queue);
+    
     while(true)
     {
         if (pipe->poll_for_frames(&Frames) && bShouldPlayback)
         {
-            FramesAligned = AlignToDepth.process(Frames);
+            //FramesAligned = AlignToDepth.process(Frames);
+            //FramesAlignedToColor = AlignToColor.process(Frames);
             FrameCount++;
             rs2::depth_frame DepthFrame = Frames.get_depth_frame();
             rs2::video_frame ColorFrame = Frames.get_color_frame();
-            rs2::video_frame ColorFrameAligned = FramesAligned.get_color_frame();
+            //rs2::video_frame ColorFrameAligned = FramesAligned.get_color_frame();
+            //rs2::depth_frame DepthFrameAligned = FramesAlignedToColor.get_depth_frame();
             
             const int DepthWidth = DepthFrame.as<rs2::video_frame>().get_width();
             const int DepthHeight = DepthFrame.as<rs2::video_frame>().get_height();
             const int ColorWidth = ColorFrame.get_width();
             const int ColorHeight = ColorFrame.get_height();
             
-            const int AlignedWidth = ColorFrameAligned.get_width();
-            const int AlignedHeight = ColorFrameAligned.get_height();
+            //const int AlignedWidth = ColorFrameAligned.get_width();
+            //const int AlignedHeight = ColorFrameAligned.get_height();
+            
+            //const int DepthAlignedWidth = DepthFrameAligned.get_width();
+            //const int DepthAlignedHeight = DepthFrameAligned.get_height();
             
             rs2::frame VisualizedDepthFrame = ColorMap.process(DepthFrame);
             //rs2::frame FilteredFrame = HoleFillingFilter.process(DepthFrame);
@@ -196,12 +224,27 @@ int main(int argc, char** argv)
             rs2::frame DoubleFilteredFrame = HoleFillingFilter.process(FilteredFrame);
             rs2::frame FilteredVisualizedDepthFrame = ColorMap.process(FilteredFrame);
             rs2::frame DoubleFilteredVisualizedDepthFrame = ColorMap.process(DoubleFilteredFrame);
+            //rs2::frame DepthFrameAlignedVisualized = ColorMap.process(DepthFrameAligned); 
             
             cv::Mat Image(cv::Size(ColorWidth, ColorHeight), CV_8UC3, (void*)ColorFrame.get_data(), cv::Mat::AUTO_STEP);
             cv::Mat VisualizedImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)VisualizedDepthFrame.get_data(), cv::Mat::AUTO_STEP);
             cv::Mat FilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)FilteredVisualizedDepthFrame.get_data(), cv::Mat::AUTO_STEP);
             cv::Mat DoubleFilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)DoubleFilteredVisualizedDepthFrame.get_data(), cv::Mat::AUTO_STEP);
-            cv::Mat ImageAligned(cv::Size(AlignedWidth, AlignedHeight), CV_8UC3, (void*)ColorFrameAligned.get_data(), cv::Mat::AUTO_STEP);
+            //cv::Mat ImageAligned(cv::Size(AlignedWidth, AlignedHeight), CV_8UC3, (void*)ColorFrameAligned.get_data(), cv::Mat::AUTO_STEP);
+            //cv::Mat DepthImageAligned(cv::Size(DepthAlignedWidth, DepthAlignedHeight), CV_8UC3, (void*)DepthFrameAlignedVisualized.get_data(), cv::Mat::AUTO_STEP);
+                      
+            // own artifact removal methods
+//            PB.invoke(DepthFrame);
+            
+//            rs2::frame DepthFrame2 = Queue.wait_for_frame(25000);
+//            std::cout << "test" << std::endl;
+//            rs2::frame VisualizedOwnFilteredFrame = ColorMap.process(DepthFrame2);
+
+//            cv::Mat VisualizedOwnFilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)VisualizedOwnFilteredFrame.get_data(), cv::Mat::AUTO_STEP);
+            
+            
+            
+                        
             if (FrameCount == 1)
             {
                 Image.copyTo(FirstImage);
@@ -218,7 +261,7 @@ int main(int argc, char** argv)
                 ArtifactsUnfiltered += CountArtifacts(VisualizedImage);
                 ArtifactsFiltered += CountArtifacts(FilteredImage);
                 ArtifactsDoubleFiltered += CountArtifacts(DoubleFilteredImage);
-                std::vector<cv::Mat> Images {Image, ImageAligned, VisualizedImage, FilteredImage, DoubleFilteredImage};
+                std::vector<cv::Mat> Images {Image, VisualizedImage, FilteredImage, DoubleFilteredImage/*, VisualizedOwnFilteredImage*/};
                 cv::Mat Canvas = makeCanvas(Images, 960, 2);
                 cv::imshow("Image", Canvas);
                 //cv::imshow("Depth Image", VisualizedImage);
