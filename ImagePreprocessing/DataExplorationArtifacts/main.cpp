@@ -122,14 +122,14 @@ int CountArtifacts(cv::Mat& Image)
     
 int main(int argc, char** argv)
 {
-    if (argc < 3)
+    if (argc < 2)
     {
         std::cout << "Too few arguments. Usage is: <filename> <filter option>" << std::endl;
         return 0;
     }
     std::string Path = argv[1];
-    int OptionHoleFilling = 0;
-    OptionHoleFilling = atoi(argv[2]);
+//    int OptionHoleFilling = 0;
+//    OptionHoleFilling = atoi(argv[2]);
     /** 
      * 0 - fill_from_left
      * 1 - farest_from_around
@@ -140,19 +140,37 @@ int main(int argc, char** argv)
     bool bPausePlayback = false;
     bool bShouldPlayback = true;
     
-    // define postprocessing filters
+    /* define postprocessing filters */
+    rs2::decimation_filter DecimationFilter;        // implements subsampling
+    rs2::spatial_filter SpatialFilter;              // fills holes with neighboring valid pixels
+    rs2::temporal_filter TemporalFilter;
+    
+    
     rs2::hole_filling_filter HoleFillingFilter;
-    rs2::spatial_filter SpatialFilter;
     rs2::colorizer ColorMap;
     
     rs2::align AlignToDepth(RS2_STREAM_DEPTH);
     rs2::align AlignToColor(RS2_STREAM_COLOR);
     
-    // configure filter parameters
-    HoleFillingFilter.set_option(RS2_OPTION_HOLES_FILL, OptionHoleFilling);
-    SpatialFilter.set_option(RS2_OPTION_FILTER_SMOOTH_ALPHA, 0.55f);
-    SpatialFilter.set_option(RS2_OPTION_HOLES_FILL, 3);
-    SpatialFilter.set_option(RS2_OPTION_FILTER_MAGNITUDE, 2);
+    /* configure filter parameters */
+    DecimationFilter.set_option(RS2_OPTION_FILTER_MAGNITUDE, 4);    // 2-3 uses median, from 4 upwards uses mean
+    
+    SpatialFilter.set_option(RS2_OPTION_FILTER_MAGNITUDE, 2);       // 2 iterations
+    SpatialFilter.set_option(RS2_OPTION_FILTER_SMOOTH_ALPHA, 0.6f); 
+    SpatialFilter.set_option(RS2_OPTION_FILTER_SMOOTH_DELTA, 8);
+    SpatialFilter.set_option(RS2_OPTION_HOLES_FILL, 3);             // uses 8x8 neighborhood
+    
+    TemporalFilter.set_option(RS2_OPTION_FILTER_SMOOTH_ALPHA, 0.5f);
+    TemporalFilter.set_option(RS2_OPTION_FILTER_SMOOTH_DELTA, 20);
+    TemporalFilter.set_option(RS2_OPTION_HOLES_FILL, 3);
+    
+    HoleFillingFilter.set_option(RS2_OPTION_HOLES_FILL, 2);
+    
+    //HoleFillingFilter.set_option(RS2_OPTION_HOLES_FILL, OptionHoleFilling);
+    //SpatialFilter.set_option(RS2_OPTION_FILTER_SMOOTH_ALPHA, 0.55f);
+    //SpatialFilter.set_option(RS2_OPTION_HOLES_FILL, 3);
+    //SpatialFilter.set_option(RS2_OPTION_FILTER_MAGNITUDE, 2);
+    ColorMap.set_option(RS2_OPTION_COLOR_SCHEME, /*7*/0);
     
     auto pipe = std::make_shared<rs2::pipeline>();
     rs2::config cfg;
@@ -166,6 +184,7 @@ int main(int argc, char** argv)
     rs2::frameset FramesAligned;
     rs2::frameset FramesAlignedToColor;
     cv::namedWindow("Image", CV_WINDOW_AUTOSIZE);
+    cv::namedWindow("Image 2", CV_WINDOW_AUTOSIZE);
     //cv::namedWindow("Depth Image", CV_WINDOW_AUTOSIZE);
     //cv::namedWindow("Filtered Depth Image", CV_WINDOW_AUTOSIZE);
     cv::Mat FirstImage;
@@ -183,17 +202,18 @@ int main(int argc, char** argv)
         const int DHeight = Frame.as<rs2::video_frame>().get_height();
         cv::Mat DepthImage(cv::Size(DWidth, DHeight), CV_16U, (void*)Frame.get_data(), cv::Mat::AUTO_STEP);
         cv::Mat OwnFilteredImage;
+        //DepthImage.copyTo(OwnFilteredImage);
         
         ArtifactRemover AR = ArtifactRemover();
-        AR.RecursiveMedianFilter(DepthImage, OwnFilteredImage, 2);
-        
+        //AR.RecursiveMedianFilter(DepthImage, OwnFilteredImage, 2);
+        AR.NormalizedConvolution(DepthImage, &OwnFilteredImage, 4, 20);
         // transform opencv mat back to rs2::frame
         auto res = src.allocate_video_frame(Frame.get_profile(), Frame);
         std::memcpy((void*)res.get_data(), OwnFilteredImage.data, DWidth * DHeight * 2);
         src.frame_ready(res);
     });
     
-    PB.start(Queue);
+    //PB.start(Queue);
     
     while(true)
     {
@@ -234,17 +254,46 @@ int main(int argc, char** argv)
             //cv::Mat DepthImageAligned(cv::Size(DepthAlignedWidth, DepthAlignedHeight), CV_8UC3, (void*)DepthFrameAlignedVisualized.get_data(), cv::Mat::AUTO_STEP);
                       
             // own artifact removal methods
-//            PB.invoke(DepthFrame);
+            //PB.invoke(DepthFrame);
             
-//            rs2::frame DepthFrame2 = Queue.wait_for_frame(25000);
-//            std::cout << "test" << std::endl;
-//            rs2::frame VisualizedOwnFilteredFrame = ColorMap.process(DepthFrame2);
-
-//            cv::Mat VisualizedOwnFilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)VisualizedOwnFilteredFrame.get_data(), cv::Mat::AUTO_STEP);
+            //rs2::frame DepthFrame2 = Queue.wait_for_frame(25000);
+            //rs2::frame VisualizedOwnFilteredFrame = ColorMap.process(DepthFrame2);
+            
+//            cv::Mat DepthImage(cv::Size(DepthWidth, DepthHeight), CV_16U, (void*)DepthFrame.get_data(), cv::Mat::AUTO_STEP);
+//            cv::Mat OwnFilteredImage;
+//            ArtifactRemover AR = ArtifactRemover();
+//            AR.NormalizedConvolution(DepthImage, OwnFilteredImage, 4, 20);
+//            std::cout << "Test2" << std::endl;
+//            cv::Mat OFI, VisualizedOwnFilteredImage;
+//            OwnFilteredImage.convertTo(OFI, CV_8U);
+//            std::cout << "test3" << std::endl;
+//            cv::applyColorMap(OFI, VisualizedOwnFilteredImage, cv::COLORMAP_JET);
+            
+            //cv::Mat VisualizedOwnFilteredImage(cv::Size(DepthWidth, DepthHeight), CV_8UC3, (void*)VisualizedOwnFilteredFrame.get_data(), cv::Mat::AUTO_STEP);
             
             
+            /* depth image post processing */
+            rs2::frame DecimationFrame, SpatialFrame, TemporalFrame, HoleFillingFrame;
+            DecimationFrame = DecimationFilter.process(DepthFrame);
+            SpatialFrame = SpatialFilter.process(DecimationFrame);
+            TemporalFrame = TemporalFilter.process(SpatialFrame);
+            HoleFillingFrame = HoleFillingFilter.process(TemporalFrame);
             
-                        
+            /* colorize */
+            DecimationFrame = ColorMap.process(DecimationFrame);
+            SpatialFrame = ColorMap.process(SpatialFrame);
+            TemporalFrame = ColorMap.process(TemporalFrame);
+            HoleFillingFrame = ColorMap.process(HoleFillingFrame);
+            
+            const int DecWidth = DecimationFrame.as<rs2::video_frame>().get_width();
+            const int DecHeight = DecimationFrame.as<rs2::video_frame>().get_height();
+            
+            /* create OpenCV matrices */
+            cv::Mat DecimationImage(cv::Size(DecWidth, DecHeight), CV_8UC3, (void*)DecimationFrame.get_data(), cv::Mat::AUTO_STEP);
+            cv::Mat SpatialImage(cv::Size(DecWidth, DecHeight), CV_8UC3, (void*)SpatialFrame.get_data(), cv::Mat::AUTO_STEP);
+            cv::Mat TemporalImage(cv::Size(DecWidth, DecHeight), CV_8UC3, (void*)TemporalFrame.get_data(), cv::Mat::AUTO_STEP);
+            cv::Mat HoleFillingImage(cv::Size(DecWidth, DecHeight), CV_8UC3, (void*)HoleFillingFrame.get_data(), cv::Mat::AUTO_STEP);            
+            
             if (FrameCount == 1)
             {
                 Image.copyTo(FirstImage);
@@ -262,8 +311,11 @@ int main(int argc, char** argv)
                 ArtifactsFiltered += CountArtifacts(FilteredImage);
                 ArtifactsDoubleFiltered += CountArtifacts(DoubleFilteredImage);
                 std::vector<cv::Mat> Images {Image, VisualizedImage, FilteredImage, DoubleFilteredImage/*, VisualizedOwnFilteredImage*/};
+                std::vector<cv::Mat> Images2 {DecimationImage, SpatialImage, TemporalImage, HoleFillingImage};
                 cv::Mat Canvas = makeCanvas(Images, 960, 2);
+                cv::Mat Canvas2 = makeCanvas(Images2, DecHeight*2, 2);
                 cv::imshow("Image", Canvas);
+                cv::imshow("Image 2", Canvas2);
                 //cv::imshow("Depth Image", VisualizedImage);
             }
         }
