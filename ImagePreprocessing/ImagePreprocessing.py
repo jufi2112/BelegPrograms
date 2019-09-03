@@ -50,19 +50,14 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
         # create folder structure to save extracted images to
         
         # first, check if we have outdoor or indoor lighting
-        path_separated = path.split("/")
-        if len(path_separated) == 0:
-            print("Error when trying to split " + path + " on '/': No splitting possible!")
-            exit()
+        path_separated = os.path.split(path)
                 
-        save_path = os.path.join(save_path, path_separated[-1])
+        save_path = os.path.join(save_path, path_separated[1])
                 
         # next, get the scene the .bag file contains and create respective subfolder
         file_split = file.split("_")
-        if len(file_split) == 0:
-            print("Error when trying to split " + file + " on '_': No splitting possible!")
-            exit()
         
+        # this is the base folder for where to save the images from this .bag file to
         save_path = os.path.join(save_path, file_split[0] + "_" + file_split[1])
         
         
@@ -94,16 +89,22 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
                 color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
                 
                 # multiply depth image's values by the cameras scaling factor to retrieve absolut depth values
-                depth_image_raw = depth_scale * depth_image_raw
-                depth_image_proc = depth_scale * depth_image_proc
+                depth_image_raw = np.asarray(depth_scale * depth_image_raw, dtype=np.float64)
+                depth_image_proc = np.asarray(depth_scale * depth_image_proc, dtype=np.float64)
                 
                 # save images to respective folders
                 
-                # TODO test if scaling of depth image loses information
-                # TODO think aboult folder structure for each scene (own folder for every image type?)
+                # TODO test if scaling of depth image loses information -> no, image get's automatically transformed to float64
 
                 
-                    
+                # folder to save color images
+                save_color = os.path.join(save_path, "Color")
+                # folder to save infrared images
+                save_ir = os.path.join(save_path, "Infrared")
+                # folder to save raw depth images
+                save_depth_raw = os.path.join(save_path, "Depth_Raw")
+                # folder to save processed depth images
+                save_depth_processed = os.path.join(save_path, "Depth_Processed")
                 
                     
                 
