@@ -14,7 +14,7 @@ from tqdm import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-def read_images(files, path, save_path, downsample_filter_magnitude=1):
+def process_images(files, path, save_path, downsample_filter_magnitude=1):
     # configure pipeline
     #try:
     pipeline = rs.pipeline()
@@ -43,9 +43,7 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
         # initialize decimation filter
         decimation = rs.decimation_filter()
         decimation.set_option(rs.option.filter_magnitude, downsample_filter_magnitude)
-            
-        Success = True
-        Frames = 0
+        
         
         # create folder structure to save extracted images to
         
@@ -64,8 +62,31 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
         # create subfolder if not existant
         os.makedirs(save_path, exist_ok=True)
                 
+        # folder to save color images
+        save_color = os.path.join(save_path, "Color")
+        # folder to save infrared images
+        save_ir = os.path.join(save_path, "Infrared")
+        # folder to save raw depth images
+        save_depth_raw = os.path.join(save_path, "Depth_Raw")
+        # folder to save processed depth images
+        save_depth_processed = os.path.join(save_path, "Depth_Processed")
         
+        # create these directories
+        os.makedirs(save_color, exist_ok=True)
+        os.makedirs(save_ir, exist_ok=True)
+        os.makedirs(save_depth_raw, exist_ok=True)
+        os.makedirs(save_depth_processed, exist_ok=True)
+        
+        # create .txt file that contains the depth scale value
+        with open(os.path.join(save_path, "Scale.txt"), 'w') as scale_file:
+            scale_file.write(str(depth_scale))
             
+        Success = True
+        # check if there are already images in the subfolders (i.e. the current scene .bag is a _Part_2)
+        # set Frames to the number of existing images (since naming is 1-based but Frames gets incremented at the start of the loop)
+        existing_jpg = os.listdir(save_color)
+        Frames = len([jpg for jpg in existing_jpg if Path(jpg).suffix == ".jpg"])
+        
         while Success:
             Success, frames = pipeline.try_wait_for_frames()
                 #print(Success)
@@ -88,25 +109,22 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
                 # convert all color images to BGR so they get adequately saved / infrared and depth image only have one channel, so they don't matter
                 color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
                 
-                # multiply depth image's values by the cameras scaling factor to retrieve absolut depth values
-                depth_image_raw = np.asarray(depth_scale * depth_image_raw, dtype=np.float64)
-                depth_image_proc = np.asarray(depth_scale * depth_image_proc, dtype=np.float64)
+                # multiply depth image's values by the cameras scaling factor to retrieve absolut depth values in meter --> do this when reading the values in network
+                # float64 values cannot be saved as images in opencv
+                #depth_image_raw = np.asarray(depth_scale * depth_image_raw, dtype=np.float64)
+                #depth_image_proc = np.asarray(depth_scale * depth_image_proc, dtype=np.float64)
                 
                 # save images to respective folders
+                color_filepath = os.path.join(save_color, str(Frames) + ".jpg")
+                ir_filepath = os.path.join(save_ir, str(Frames) + ".jpg")
+                depth_raw_filepath = os.path.join(save_depth_raw, str(Frames) + ".png")
+                depth_processed_filepath = os.path.join(save_depth_processed, str(Frames) + ".png")
                 
-                # TODO test if scaling of depth image loses information -> no, image get's automatically transformed to float64
-
-                
-                # folder to save color images
-                save_color = os.path.join(save_path, "Color")
-                # folder to save infrared images
-                save_ir = os.path.join(save_path, "Infrared")
-                # folder to save raw depth images
-                save_depth_raw = os.path.join(save_path, "Depth_Raw")
-                # folder to save processed depth images
-                save_depth_processed = os.path.join(save_path, "Depth_Processed")
-                
-                    
+                cv2.imwrite(color_filepath, color_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                cv2.imwrite(ir_filepath, ir_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                cv2.imwrite(depth_raw_filepath, depth_image_raw, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+                cv2.imwrite(depth_processed_filepath, depth_image_proc, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+                                      
                 
                 #plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
                 #plt.imshow(ir_image, cmap="gray")
@@ -168,9 +186,11 @@ print("Found " + str(len(indoor_files)) + " indoor .bag files")
 
 
 print("Starting preprocessing for files in " + outdoor_path + "...")
-read_images(outdoor_files, outdoor_path, args.decimation)
+process_images(outdoor_files, outdoor_path, args.output, args.decimation)
 
 print("Starting preprocessing for files in " + indoor_path + "...")
-read_images(indoor_files, indoor_path, args.decimation)
+process_images(indoor_files, indoor_path, args.output, args.decimation)
+
+print("Finished processing!")
 
 exit()
