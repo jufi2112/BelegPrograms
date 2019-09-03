@@ -23,11 +23,20 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
         #config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         #config.enable_stream(rs.stream.infrared, 640, 480, rs.format.y8, 30)
     for file in tqdm(files):
+        # skip file if it is marked as defect
+        if file.split("_")[0] == "DEFECT":
+            continue
+        
         filepath = os.path.join(path, file)
         rs.config.enable_device_from_file(config, filepath, False)
             
         pipeline.start(config)
         device = pipeline.get_active_profile().get_device()
+        
+        # retrieve the depth scale so we can transform the depth frame's values to meters
+        sensor = device.first_depth_sensor()
+        depth_scale = sensor.get_depth_scale()
+        
         playback = device.as_playback()
         playback.set_real_time(False)
         
@@ -37,6 +46,30 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
             
         Success = True
         Frames = 0
+        
+        # create folder structure to save extracted images to
+        
+        # first, check if we have outdoor or indoor lighting
+        path_separated = path.split("/")
+        if len(path_separated) == 0:
+            print("Error when trying to split " + path + " on '/': No splitting possible!")
+            exit()
+                
+        save_path = os.path.join(save_path, path_separated[-1])
+                
+        # next, get the scene the .bag file contains and create respective subfolder
+        file_split = file.split("_")
+        if len(file_split) == 0:
+            print("Error when trying to split " + file + " on '_': No splitting possible!")
+            exit()
+        
+        save_path = os.path.join(save_path, file_split[0] + "_" + file_split[1])
+        
+        
+        # create subfolder if not existant
+        os.makedirs(save_path, exist_ok=True)
+                
+        
             
         while Success:
             Success, frames = pipeline.try_wait_for_frames()
@@ -57,7 +90,22 @@ def read_images(files, path, save_path, downsample_filter_magnitude=1):
                 depth_frame_proc = decimation.process(depth_frame)      
                 depth_image_proc = np.asarray(depth_frame_proc.get_data(), dtype=np.uint16)
                 
+                # convert all color images to BGR so they get adequately saved / infrared and depth image only have one channel, so they don't matter
+                color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
+                
+                # multiply depth image's values by the cameras scaling factor to retrieve absolut depth values
+                depth_image_raw = depth_scale * depth_image_raw
+                depth_image_proc = depth_scale * depth_image_proc
+                
                 # save images to respective folders
+                
+                # TODO test if scaling of depth image loses information
+                # TODO think aboult folder structure for each scene (own folder for every image type?)
+
+                
+                    
+                
+                    
                 
                 #plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
                 #plt.imshow(ir_image, cmap="gray")
