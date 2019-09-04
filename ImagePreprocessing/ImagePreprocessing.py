@@ -12,11 +12,20 @@ import argparse
 import os
 from tqdm import tqdm
 from pathlib import Path
-import matplotlib.pyplot as plt
 
-def process_images(files, path, save_path, downsample_filter_magnitude=1):
+def process_images(files, path, save_path_main, downsample_filter_magnitude=1, skip_existing_scenes=False, verbose=0):
     # configure pipeline
     #try:
+    
+    time_start_process = cv2.getTickCount()
+    
+    main_path_separated = os.path.split(path)
+    main_path_to_scenes = os.path.join(save_path_main, main_path_separated[1])
+    if verbose > 0:
+        print("Main path to scenes is: " + main_path_to_scenes)
+    
+    Frames_overall = 0
+    
     pipeline = rs.pipeline()
     config = rs.config()
         #config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
@@ -25,7 +34,25 @@ def process_images(files, path, save_path, downsample_filter_magnitude=1):
     for file in tqdm(files):
         # skip file if it is marked as defect
         if file.split("_")[0] == "DEFECT":
+            if verbose > 0:
+                print("Found defect .bag file. Skipping...")
             continue
+        
+        time_start_one = cv2.getTickCount()
+        
+        file_split = file.split("_")
+        
+        save_path = main_path_to_scenes
+        
+        # this is the base folder for where to save the images from this .bag file to
+        save_path = os.path.join(save_path, file_split[0] + "_" + file_split[1])
+        
+        # skip folder if we dont want to append to existing folders and the folder exists
+        if skip_existing_scenes:
+            if os.path.isdir(save_path):
+                if verbose > 0:
+                    print("Skipping existing folder: " + save_path)
+                continue
         
         filepath = os.path.join(path, file)
         rs.config.enable_device_from_file(config, filepath, False)
@@ -44,20 +71,10 @@ def process_images(files, path, save_path, downsample_filter_magnitude=1):
         decimation = rs.decimation_filter()
         decimation.set_option(rs.option.filter_magnitude, downsample_filter_magnitude)
         
+        if verbose > 0:
+            print("Depth scale for " + file +  " is: " + str(depth_scale))
         
         # create folder structure to save extracted images to
-        
-        # first, check if we have outdoor or indoor lighting
-        path_separated = os.path.split(path)
-                
-        save_path = os.path.join(save_path, path_separated[1])
-                
-        # next, get the scene the .bag file contains and create respective subfolder
-        file_split = file.split("_")
-        
-        # this is the base folder for where to save the images from this .bag file to
-        save_path = os.path.join(save_path, file_split[0] + "_" + file_split[1])
-        
         
         # create subfolder if not existant
         os.makedirs(save_path, exist_ok=True)
@@ -86,12 +103,18 @@ def process_images(files, path, save_path, downsample_filter_magnitude=1):
         # set Frames to the number of existing images (since naming is 1-based but Frames gets incremented at the start of the loop)
         existing_jpg = os.listdir(save_color)
         Frames = len([jpg for jpg in existing_jpg if Path(jpg).suffix == ".jpg"])
+        if verbose > 0:
+            print("For " + file + " " + str(Frames) + " frames are already present. Starting with index " + str(Frames+1))
+        
+        Frames_current_bag = 0
         
         while Success:
             Success, frames = pipeline.try_wait_for_frames()
                 #print(Success)
             if Success is True:
                 Frames += 1
+                Frames_overall += 1
+                Frames_current_bag += 1
                     #print(Frames)
                 depth_frame = frames.get_depth_frame()
                 color_frame = frames.get_color_frame()
@@ -132,7 +155,19 @@ def process_images(files, path, save_path, downsample_filter_magnitude=1):
                 #plt.pause(.1)
                 #plt.draw()
         pipeline.stop()
-                
+        time_end_one = cv2.getTickCount()
+        if verbose > 0:
+            print("For " + file + " found " + str(Frames_current_bag) + " frames")
+
+        if verbose > 1:
+            time_one = (time_end_one - time_start_one) / cv2.getTickFrequency()
+            print("Needed " + str(time_one) + " seconds to extract all images from " + file)
+    
+    time_end_process = cv2.getTickCount()
+    if verbose > 1:
+        time_process = (time_end_process - time_start_process) / cv2.getTickFrequency()
+        print("Needed " + str(time_process) + " seconds to process " + main_path_separated[1])
+    return Frames_overall               
                 
     #finally:
         #pass
@@ -143,6 +178,8 @@ Parser = argparse.ArgumentParser(description="Reads all recorded bag files from 
 Parser.add_argument("-i", "--input", type=str, help="Path to main folder that contains subfolders 'Outdoor_Lighting' and 'Indoor_Lighting' which contain the recorded bag files")
 Parser.add_argument("-o", "--output", type=str, help="Path where the included images should be saved to")
 Parser.add_argument("-d", "--decimation", type=int, default=1 ,help="Decimation filter magnitude. Values of 2 and 3 perform median downsampling, values greater than 3 perform mean downsampling")
+Parser.add_argument("-s", "--skip", type=bool, default=False, help="Should scenes that already exist in the output location be skipped. Default is False. If activated, _Part_2.bag files will not be considered. This can also be used to only process .bag files that are not yet processed")
+Parser.add_argument("-v", "--verbose", type=int, default=0, help="Verbosity settings. 0 - no extra messages. 1 - basic debug messages. 2 - additional runtime messages")
 
 args = Parser.parse_args()
 
@@ -159,6 +196,8 @@ if not args.decimation:
     print("No decimation filter magnitude input. Assuming 1 (no downsampling")
     args.decimation = 1 # necessary with default=1 ?
     
+time_start_overall = cv2.getTickCount()
+
 # paths to subfolders
 outdoor_path = os.path.join(args.input, "Outdoor_Lighting")
 indoor_path = os.path.join(args.input, "Indoor_Lighting")
@@ -184,13 +223,18 @@ indoor_files = [file for file in indoor_available_files if Path(file).suffix == 
 print("Found " + str(len(outdoor_files)) + " outdoor .bag files")
 print("Found " + str(len(indoor_files)) + " indoor .bag files")
 
+number_frames = 0
 
-print("Starting preprocessing for files in " + outdoor_path + "...")
-process_images(outdoor_files, outdoor_path, args.output, args.decimation)
+print("Starting preprocessing for files in " + outdoor_path + " ...")
+number_frames += process_images(outdoor_files, outdoor_path, args.output, args.decimation, args.skip, args.verbose)
 
-print("Starting preprocessing for files in " + indoor_path + "...")
-process_images(indoor_files, indoor_path, args.output, args.decimation)
+print("Starting preprocessing for files in " + indoor_path + " ...")
+number_frames += process_images(indoor_files, indoor_path, args.output, args.decimation, args.skip, args.verbose)
 
-print("Finished processing!")
+time_end_overall = cv2.getTickCount()
+time_overall = (time_end_overall - time_start_overall) / cv2.getTickFrequency()
+
+print("Finished processing all " + str(number_frames) + " frames in " + str(time_overall) + " seconds.")
+
 
 exit()
