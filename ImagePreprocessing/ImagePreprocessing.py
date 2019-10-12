@@ -139,12 +139,12 @@ def process_images(files, path, save_path_main, downsample_filter_magnitude=1, s
                 
                 # save images to respective folders
                 color_filepath = os.path.join(save_color, str(Frames) + ".jpg")
-                ir_filepath = os.path.join(save_ir, str(Frames) + ".jpg")
+                ir_filepath = os.path.join(save_ir, str(Frames) + ".png")
                 depth_raw_filepath = os.path.join(save_depth_raw, str(Frames) + ".png")
                 #depth_processed_filepath = os.path.join(save_depth_processed, str(Frames) + ".png")
                 
                 cv2.imwrite(color_filepath, color_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
-                cv2.imwrite(ir_filepath, ir_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                cv2.imwrite(ir_filepath, ir_image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
                 cv2.imwrite(depth_raw_filepath, depth_image_raw, [cv2.IMWRITE_PNG_COMPRESSION, 0])
                 #cv2.imwrite(depth_processed_filepath, depth_image_proc, [cv2.IMWRITE_PNG_COMPRESSION, 0])
                                       
