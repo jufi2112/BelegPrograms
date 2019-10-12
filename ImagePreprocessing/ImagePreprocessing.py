@@ -67,9 +67,9 @@ def process_images(files, path, save_path_main, downsample_filter_magnitude=1, s
         playback = device.as_playback()
         playback.set_real_time(False)
         
-        # initialize decimation filter
-        decimation = rs.decimation_filter()
-        decimation.set_option(rs.option.filter_magnitude, downsample_filter_magnitude)
+        # initialize decimation filter -> not used anymore
+        #decimation = rs.decimation_filter()
+        #decimation.set_option(rs.option.filter_magnitude, downsample_filter_magnitude)
         
         if verbose > 0:
             print("Depth scale for " + file +  " is: " + str(depth_scale))
@@ -86,13 +86,13 @@ def process_images(files, path, save_path_main, downsample_filter_magnitude=1, s
         # folder to save raw depth images
         save_depth_raw = os.path.join(save_path, "Depth_Raw")
         # folder to save processed depth images
-        save_depth_processed = os.path.join(save_path, "Depth_Processed")
+        #save_depth_processed = os.path.join(save_path, "Depth_Processed")
         
         # create these directories
         os.makedirs(save_color, exist_ok=True)
         os.makedirs(save_ir, exist_ok=True)
         os.makedirs(save_depth_raw, exist_ok=True)
-        os.makedirs(save_depth_processed, exist_ok=True)
+        #os.makedirs(save_depth_processed, exist_ok=True)
         
         # create .txt file that contains the depth scale value
         with open(os.path.join(save_path, "Scale.txt"), 'w') as scale_file:
@@ -123,13 +123,13 @@ def process_images(files, path, save_path_main, downsample_filter_magnitude=1, s
                 # tell numpy explicitly what datatype we want (not necessary)
                 
                 color_image = np.asarray(color_frame.get_data(), dtype=np.uint8)
-                ir_image = np.asarray(ir_frame.get_data(), dtype=np.uint8)
+                ir_image = np.asarray(ir_frame.get_data(), dtype=np.uint16)
                 depth_image_raw = np.asarray(depth_frame.get_data(), dtype=np.uint16)
                 
-                depth_frame_proc = decimation.process(depth_frame)      
-                depth_image_proc = np.asarray(depth_frame_proc.get_data(), dtype=np.uint16)
+                #depth_frame_proc = decimation.process(depth_frame)      
+                #depth_image_proc = np.asarray(depth_frame_proc.get_data(), dtype=np.uint16)
                 
-                # convert all color images to BGR so they get adequately saved / infrared and depth image only have one channel, so they don't matter
+                # convert all color images to BGR so they get adequately saved as RGB / infrared and depth image only have one channel, so they don't matter (imwrite assumes bgr images and saves them as rgb images)
                 color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
                 
                 # multiply depth image's values by the cameras scaling factor to retrieve absolut depth values in meter --> do this when reading the values in network
@@ -141,12 +141,12 @@ def process_images(files, path, save_path_main, downsample_filter_magnitude=1, s
                 color_filepath = os.path.join(save_color, str(Frames) + ".jpg")
                 ir_filepath = os.path.join(save_ir, str(Frames) + ".jpg")
                 depth_raw_filepath = os.path.join(save_depth_raw, str(Frames) + ".png")
-                depth_processed_filepath = os.path.join(save_depth_processed, str(Frames) + ".png")
+                #depth_processed_filepath = os.path.join(save_depth_processed, str(Frames) + ".png")
                 
                 cv2.imwrite(color_filepath, color_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
                 cv2.imwrite(ir_filepath, ir_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
                 cv2.imwrite(depth_raw_filepath, depth_image_raw, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-                cv2.imwrite(depth_processed_filepath, depth_image_proc, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+                #cv2.imwrite(depth_processed_filepath, depth_image_proc, [cv2.IMWRITE_PNG_COMPRESSION, 0])
                                       
                 
                 #plt.imshow(cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB))
@@ -199,37 +199,48 @@ if not args.decimation:
 time_start_overall = cv2.getTickCount()
 
 # paths to subfolders
-outdoor_path = os.path.join(args.input, "Outdoor_Lighting")
-indoor_path = os.path.join(args.input, "Indoor_Lighting")
+day_path = os.path.join(args.input, "Day")
+night_path = os.path.join(args.input, "Night")
+cloudy_path = os.path.join(args.input, "Cloudy_Conditions")
 
 # check if paths exist
-if not os.path.isdir(outdoor_path):
-    print("Could not find the directory " + outdoor_path)
+if not os.path.isdir(day_path):
+    print("Could not find the directory " + day_path)
     exit()
     
-if not os.path.isdir(indoor_path):
-    print("Could not find the directory " + indoor_path)
+if not os.path.isdir(night_path):
+    print("Could not find the directory " + night_path)
+    exit()
+    
+if not os.path.isdir(cloudy_path):
+    print("Could not find the directory " + cloudy_path)
     exit()
 
-print("Searching for .bag files in " + outdoor_path + " and " + indoor_path)
+print("Searching for .bag files in " + day_path + ", " + night_path + " and " + cloudy_path)
 
 # gather all .bag files
-outdoor_available_files = os.listdir(outdoor_path)
-indoor_available_files = os.listdir(indoor_path)
+day_available_files = os.listdir(day_path)
+night_available_files = os.listdir(night_path)
+cloudy_available_files = os.listdir(cloudy_path)
 
-outdoor_files = [file for file in outdoor_available_files if Path(file).suffix == ".bag"]
-indoor_files = [file for file in indoor_available_files if Path(file).suffix == ".bag"]
+day_files = [file for file in day_available_files if Path(file).suffix == ".bag"]
+night_files = [file for file in night_available_files if Path(file).suffix == ".bag"]
+cloudy_files = [file for file in cloudy_available_files if Path(file).suffix == ".bag"]
 
-print("Found " + str(len(outdoor_files)) + " outdoor .bag files")
-print("Found " + str(len(indoor_files)) + " indoor .bag files")
+print("Found " + str(len(day_files)) + " daytime .bag files")
+print("Found " + str(len(night_files)) + " nighttime .bag files")
+print("Found " + str(len(cloudy_files)) + " cloudy weather .bag files")
 
 number_frames = 0
 
-print("Starting preprocessing for files in " + outdoor_path + " ...")
-number_frames += process_images(outdoor_files, outdoor_path, args.output, args.decimation, args.skip, args.verbose)
+print("Starting preprocessing for files in " + day_path + " ...")
+number_frames += process_images(day_files, day_path, args.output, args.decimation, args.skip, args.verbose)
 
-print("Starting preprocessing for files in " + indoor_path + " ...")
-number_frames += process_images(indoor_files, indoor_path, args.output, args.decimation, args.skip, args.verbose)
+print("Starting preprocessing for files in " + night_path + " ...")
+number_frames += process_images(night_files, night_path, args.output, args.decimation, args.skip, args.verbose)
+
+print("Starting preprocessing for files in " + cloudy_path + " ...")
+number_frames += process_images(cloudy_files, cloudy_path, args.output, args.decimation, args.skip, args.verbose)
 
 time_end_overall = cv2.getTickCount()
 time_overall = (time_end_overall - time_start_overall) / cv2.getTickFrequency()
