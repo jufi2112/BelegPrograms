@@ -8,6 +8,11 @@
 #include <vector>
 #include <string>
 
+/*
+ * Applies a filtering operation to the given image
+ * @param DepthImage The depth image that should be filtered
+ * @return The new filtered depth image
+ */ 
 cv::Mat ApplyFilteringOperation(const cv::Mat& DepthImage);
 
 int main(int argc, char** argv)
@@ -45,6 +50,7 @@ int main(int argc, char** argv)
      * Examples: 'Scene_1', 'Scene_2', 'Scene_3'... */  
     for (const std::string& Recording : FoldersRecording)
     {
+        std::cout << "Processing scenes in " << Recording << "\n";
         std::vector<std::experimental::filesystem::path> FoldersScene;
         for (auto& p : std::experimental::filesystem::directory_iterator(Recording))
         {
@@ -61,12 +67,14 @@ int main(int argc, char** argv)
             std::experimental::filesystem::path Depth_Processed = Scene / "Depth_Processed";
             std::experimental::filesystem::create_directory(Depth_Processed);
             
+            std::cout << "   Processing scene " << Scene.string() << "\n";
+            
             std::string SceneBasePath = Scene.string();
             Scene /= "Depth_Raw";
             if (!std::experimental::filesystem::exists(Scene))
             {
                 // 'Depth_Raw' doesn't exist, ignore this scene folder
-                std::cout << "Folder 'Depth_Raw' doesn't exist in directory " << Scene.string() << " Ignoring Scene\n";
+                std::cout << "      Folder 'Depth_Raw' doesn't exist in directory " << Scene.string() << " Ignoring Scene...\n";
                 continue;
             }
             for (auto& p : std::experimental::filesystem::directory_iterator(Scene))
