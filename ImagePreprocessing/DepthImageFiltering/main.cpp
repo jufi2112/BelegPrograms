@@ -1,3 +1,5 @@
+/* Created 14/10/2019 by Julien Fischer */
+
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
