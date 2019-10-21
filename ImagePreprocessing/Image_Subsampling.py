@@ -92,9 +92,6 @@ def process_images(files,                   # file names of all bag files
             print("Needed " + str(time_one) + " seconds to extract all images from " + file)
 
     return Frames_overall               
-                
-    #finally:
-        #pass
         
 
 # object for parsing command line
@@ -137,22 +134,22 @@ print("Searching for .bag files in " + args.input)
 # gather all .bag files
 available_files = os.listdir(args.input)
 
-files = [file for file in available_files if Path(file).suffix == ".bag" and Path(file).stem != args.skip_train and Path(file).stem != args.skip_validation]
+files = [file for file in available_files if Path(file).suffix == ".bag" and Path(file).stem != args.skip_test and Path(file).stem != args.skip_validation]
 print("Found " + str(len(files)) + " .bag files:")
 print(files)
 
 with open(os.path.join(args.output, 'log.txt'), 'a') as f:
-    f.write("Scenes that get subsampled:")
+    f.write("Scenes that get subsampled:\n")
     for file in files:
-        f.write(file)
-    f.write("Scenes that get ignored:")
-    f.write("Test: " + args.skip_test)
-    f.write("Validation: " + args.skip_validation)
+        f.write(file+'\n')
+    f.write("Scenes that get ignored:\n")
+    f.write("Test: " + args.skip_test+'\n')
+    f.write("Validation: " + args.skip_validation+'\n')
 
 number_frames = 0
 
 print("Starting preprocessing...")
-#number_frames += process_images(files, args.input, args.output, args.subsample, args.verbose)
+number_frames += process_images(files, args.input, args.output, args.subsample, args.verbose)
 
 time_end_overall = cv2.getTickCount()
 time_overall = (time_end_overall - time_start_overall) / cv2.getTickFrequency()
