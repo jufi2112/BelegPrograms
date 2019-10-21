@@ -24,7 +24,7 @@ def process_images(files,                   # file names of all bag files
     frame_index = 1
     
     # create train folder with Color, Infrared and Depth folders
-    save_train = os.path.join(save_path + 'train')
+    save_train = os.path.join(save_path, 'train')
     save_color = os.path.join(save_train, 'Color')
     save_ir = os.path.join(save_train, 'Infrared')
     save_depth = os.path.join(save_train, 'Depth')
