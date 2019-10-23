@@ -20,7 +20,8 @@ export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 OUTFILE="training_output.txt"
 
 module load modenv/ml
-module load TensorFlow/1.14.0-Anaconda-3.6
+module load TensorFlow/1.14.0-PythonAnaconda-3.6
 python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model.py  > "$OUTFILE"
 
+https://www.fair4host.de/images/rServer_TestImage1.jpg
 exit 0
