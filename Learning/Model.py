@@ -16,6 +16,10 @@ from keras.layers import Input, Conv2D, Activation, BatchNormalization, Dropout,
 from keras.layers import Add # for skip connections
 from keras.utils import plot_model
 import json # for saving training history
+from keras import backend as K
+import tensorflow as tf
+from keras.callbacks import ModelCheckpoint, TensorBoard
+from time import gmtime, strftime
 
 class DataGenerator(Sequence):
     'Assumes that examples in the provided folder are named from 1 to n, with n being the number of images'
@@ -172,7 +176,7 @@ if __name__ == "__main__":
     
     training_generator = DataGenerator(
             path_to_data_set=os.path.join('data', 'train'),
-            batch_size=32,
+            batch_size=8,
             image_size=(480,640),
             shuffle=True,
             scale_images=True
@@ -180,11 +184,36 @@ if __name__ == "__main__":
 
     validation_generator = DataGenerator(
             path_to_data_set=os.path.join('data', 'validation'),
-            batch_size=32,
+            batch_size=8,
             image_size=(480,640),
             shuffle=True,
             scale_images=True
         )
+    
+    current_date = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
+    current_model_name = 'model_' + current_date + '_epoch_{epoche:04d}.h5'
+    checkpoint_path = os.path.join('saved_models', current_model_name)
+    current_log_name = 'log_' + current_date
+    log_path = os.path.join('logs', current_log_name)
+
+    checkpoint_callback = ModelCheckpoint(
+            filepath=checkpoint_path,
+            verbose=1,
+            save_best_only=False,
+            save_weights_only=False,
+            mode='auto',
+            period=1)
+
+    tensorboard_callback = TensorBoard(
+            log_dir=log_path,
+            histogram_freq = 1,
+            batch_size=8,
+            write_graph=True,
+            write_grads=True,
+            write_images=True,
+            update_freq="epoch")
+
+    callback_list = [checkpoint_callback, tensorboard_callback]
     
     vgg = VGG()
     # Color branch
@@ -275,9 +304,10 @@ if __name__ == "__main__":
     # and https://medium.com/@yanfengliux/on-writing-custom-loss-functions-in-keras-e04290dd7a96
     
     hist = model.fit_generator(
-            generator=training_generator,
-            validation_data=validation_generator,
-            epochs=10)
+           generator=training_generator,
+           validation_data=validation_generator,
+           epochs=30,
+           callbacks=callback_list)
     
     with open('history.json', 'w') as f:
         json.dump(hist.history, f)
