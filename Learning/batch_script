@@ -6,9 +6,9 @@
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1      # limit to one node
-#SBATCH --cpus-per-task=4  # number of processor cores (i.e. threads)
+#SBATCH --cpus-per-task=1  # number of processor cores (i.e. threads)
 #SBATCH --partition=ml
-#SBATCH --mem-per-cpu=4000M   # memory per CPU core
+#SBATCH --mem-per-cpu=8000M   # memory per CPU core
 #SBATCH -J "Training_1"   # job name
 #SBATCH --mail-user=julien.fischer@mailbox.tu-dresden.de   # email address
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -23,5 +23,4 @@ module load modenv/ml
 module load TensorFlow/1.14.0-PythonAnaconda-3.6
 python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model.py  > "$OUTFILE"
 
-https://www.fair4host.de/images/rServer_TestImage1.jpg
 exit 0

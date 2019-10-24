@@ -207,7 +207,7 @@ if __name__ == "__main__":
 
     tensorboard_callback = TensorBoard(
             log_dir=log_path,
-            histogram_freq = 1,
+            histogram_freq = 0,
             batch_size=8,
             write_graph=True,
             write_grads=False,
