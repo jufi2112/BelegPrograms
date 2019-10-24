@@ -191,7 +191,8 @@ if __name__ == "__main__":
         )
     
     current_date = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
-    current_model_name = 'model_' + current_date + '_epoch_{epoche:04d}.h5'
+    current_model_name = 'model_' + current_date + '_epoch_{epoch:04d}.h5'
+    os.makedirs('saved_models', exist_ok=True)
     checkpoint_path = os.path.join('saved_models', current_model_name)
     current_log_name = 'log_' + current_date
     log_path = os.path.join('logs', current_log_name)
@@ -209,7 +210,7 @@ if __name__ == "__main__":
             histogram_freq = 1,
             batch_size=8,
             write_graph=True,
-            write_grads=True,
+            write_grads=False,
             write_images=True,
             update_freq="epoch")
 
