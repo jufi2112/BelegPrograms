@@ -89,7 +89,7 @@ class DepthPredictor:
             n1.append(buffer)
         for img in d2:
             buffer = cv2.normalize(img, None, 0, 65535, cv2.NORM_MINMAX)
-            buffer = 255 - (buffer/256.),astype(np.uint8)
+            buffer = 255 - (buffer/256.).astype(np.uint8)
             buffer = cv2.equalizeHist(buffer)
             buffer = cv2.applyColorMap(buffer, color_scheme)    
             n2.append(buffer)       
@@ -127,8 +127,8 @@ class DepthPredictor:
             # difference image
             b_diff = None
             if ground_depth_raw.shape[0] != 0:
-                b_diff_d = pred_depth_raw[idx] - ground_depth_raw[idx]
-                b_diff_color = img - ground_color[idx]
+                b_diff_d = np.abs(pred_depth_raw[idx] - ground_depth_raw[idx])
+                b_diff_color = np.abs(img - ground_color[idx])
                 b_diff = np.concatenate((cv2.cvtColor(b_diff_d, cv2.COLOR_GRAY2BGR), b_diff_color), axis=0)
             img_diff.append(b_diff)           
             # comparison images
@@ -136,40 +136,41 @@ class DepthPredictor:
             if ground_color.shape[0] != 0:
                 ground = np.concatenate((cv2.cvtColor(ground_depth_n[idx], cv2.COLOR_GRAY2BGR), ground_color[idx]), axis=0)
                 summary = np.concatenate((summary, ground), axis=1)
-            img_summary.append(summary)           
-        return np.asarray(img_summary, dtype=np.uint8).reshape(-1, 480, 640, 3), np.asarray(img_diff, dtype=np.uint8).reshape(-1, 480, 640, 3)
-            
+            img_summary.append(summary)
+        return np.asarray(img_summary, dtype=np.uint8), np.asarray(img_diff, dtype=np.uint8)    
     
-    def __write_images(self, summaries, differences, savepath):
+    
+    def __write_images(self, summaries, differences, save_path):
         if not os.path.isdir(save_path):
             os.makedirs(save_path)      
         for idx, img in enumerate(summaries):
             filename_summary = str(idx) + '_summary.jpg'    
             cv2.imwrite(os.path.join(save_path, filename_summary), img)
         for idx, img in enumerate(differences):
-            filename_difference = str(idx) + '_difference.jpg'
-            cv2.imwrite(os.path.join(save_path, filename_differences), img)
+            if img is not None:
+                filename_difference = str(idx) + '_difference.jpg'
+                cv2.imwrite(os.path.join(save_path, filename_difference), img)
           
             
-    def PredictImages(self):
+    def PredictImages(self, batch_size):
         # predict
         pred_depth = self.model.predict([self.color, self.infrared], batch_size=batch_size).reshape(-1, 480,640)     
         return pred_depth
         
     
-    def ProcessImages(self, predictions, visualization_mode='normalize', batch_size):
+    def ProcessImages(self, predictions, visualization_mode='normalize'):
         # colorize prediction
         pred_color, ground_color = self.__colorize(predictions, self.depth)
         # normalize depth images for visualization
-        pred_depth_n, ground_depth_n = self.__normalize(pred_depth, self.depth, normalization_mode = visualization_mode)
+        pred_depth_n, ground_depth_n = self.__normalize(predictions, self.depth, normalization_mode = visualization_mode)
         # create images
         summaries, differences = self.__create_images(
                 pred_color = pred_color, 
                 pred_depth_n = pred_depth_n,
-                pred_depth_raw = pred_depth,
+                pred_depth_raw = predictions,
                 ground_color = ground_color,
                 ground_depth_n = ground_depth_n,
-                ground_depth_raw = self.depth)       
+                ground_depth_raw = self.depth.reshape(-1, 480, 640))       
         return summaries, differences
     
     
@@ -219,11 +220,11 @@ if __name__ == '__main__':
         dp.LoadImages(color=args.color, infrared=args.infrared, depth=args.ground_truth, normalize_images=args.normalize_input)
     
     # predict images
-    predictions = dp.PredictImages()
+    predictions = dp.PredictImages(batch_size=args.batch_size)
     
     # process images
-    summaries, differences = dp.ProcessImages(predictions=predictions, visualization_mode=args.visualization_mode, batch_size=args.batch_size)
-    
+    summaries, differences = dp.ProcessImages(predictions=predictions, visualization_mode=args.visualization_mode)
+
     # write images
     dp.WriteImages(summaries, differences, args.output)
     
