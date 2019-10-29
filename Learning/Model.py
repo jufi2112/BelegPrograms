@@ -22,7 +22,7 @@ from keras.callbacks import ModelCheckpoint, TensorBoard
 from time import gmtime, strftime
 
 class DataGenerator(Sequence):
-    'Assumes that examples in the provided folder are named from 1 to n, with n being the number of images'
+    '''Assumes that examples in the provided folder are named from 1 to n, with n being the number of images'''
     def __init__(self, path_to_data_set='data/train', batch_size=32, image_size=(480,640), shuffle=True, scale_images=False):
         self.path_to_data = path_to_data_set
         self.batch_size = batch_size
@@ -31,9 +31,14 @@ class DataGenerator(Sequence):
         self.scale_images = scale_images
         self.training_size = self.__get_training_data_size(self.path_to_data)
         self.on_epoch_end()
+        self.binary_maps = np.empty((batch_size, *image_size, 1), dtype=np.bool)
+        # debug variable, can be deleted later on
+        self.binary_map_retrieved = True
+        self.zeros = np.zeros((self.batch_size, *self.image_size, 1), dtype=np.bool)
+        
         
     def __get_training_data_size(self, path_to_data):
-        'gets the number of samples'
+        '''gets the number of samples'''
         path_color = os.path.join(path_to_data,'Color')
         if os.path.isdir(path_color):
             size = len([color for color in os.listdir(path_color) if os.path.isfile(os.path.join(path_color, color))])
@@ -41,19 +46,22 @@ class DataGenerator(Sequence):
         else:
             return 0
         
+        
     def __len__(self):
-        'Number of batches per epoche'
+        '''Number of batches per epoche'''
         return int(np.floor(self.training_size / self.batch_size))
     
+    
     def on_epoch_end(self):
-        'Update indices (and their ordering) after each epoch'
+        '''Update indices (and their ordering) after each epoch'''
         # image names start with 1, np.arange(n,m) returns values from n to (m-1)
         self.indices = np.arange(1, self.training_size+1)
         if self.shuffle == True:
             np.random.shuffle(self.indices)
             
+            
     def __data_generation(self, list_images):
-        'Generates data of size batch_size' # X = (batch_size, 480, 640, 1)
+        '''Generates data of size batch_size''' # X = (batch_size, 480, 640, 1)
         if self.scale_images == False:
             X1 = np.empty((self.batch_size, *self.image_size, 3), dtype=np.uint8) # color images
             X2 = np.empty((self.batch_size, *self.image_size), dtype=np.uint16) # ir image
@@ -61,7 +69,6 @@ class DataGenerator(Sequence):
             X1 = np.empty((self.batch_size, *self.image_size, 3), dtype=np.float32) # color images
             X2 = np.empty((self.batch_size, *self.image_size), dtype=np.float32) # ir image
         y = np.empty((self.batch_size, *self.image_size), dtype=np.uint16)  # depth image
-        
         # Generate data
         for idx, name in enumerate(list_images):
             # load images in arrays
@@ -71,35 +78,60 @@ class DataGenerator(Sequence):
                 X1[idx,] = img.astype(np.uint8)
             else:
                 X1[idx,] = (img/255.).astype(np.float32)
-            
             img = cv2.imread(os.path.join(self.path_to_data, 'Infrared', str(name)+".png"), cv2.IMREAD_ANYDEPTH)
             if self.scale_images == False:
                 X2[idx,] = img.astype(np.uint16)
             else:
                 X2[idx,] = (img/65535.).astype(np.float32)
-            
             img = cv2.imread(os.path.join(self.path_to_data, 'Depth', str(name)+".png"), cv2.IMREAD_ANYDEPTH)
             y[idx,] = img.astype(np.uint16)
-        
-        return X1, X2.reshape(-1, 480, 640, 1), y.reshape(-1, 480, 640, 1)
+        # reshape ir and depth images
+        X2 = X2.reshape(self.batch_size, 480, 640, 1)
+        y = y.reshape(self.batch_size, 480, 640, 1)  
+        # create binary maps
+        if self.binary_map_retrieved == False:
+            print("Critical error in generator: binary maps are not created and retrieved sequentially!")
+        self.binary_maps = np.greater(y, self.zeros)
+        self.binary_map_retrieved = False
+        return X1, X2, y
+    
     
     def __getitem__(self, index):
-        'Generate one batch of data, X1 contains 8-bit RGB images, X2 16-bit infrared images and y corresponding 16-bit depth images'
+        '''Generate one batch of data, X1 contains 8-bit RGB images, X2 16-bit infrared images and y corresponding 16-bit depth images'''
         # Generate indices of data
         indices = self.indices[index*self.batch_size:(index+1)*self.batch_size]
-        
         # Generate data
         X1, X2, y = self.__data_generation(indices)
-        
         return [X1, X2], y
     
+    
+    def GetCurrentBatchBinaryMaps(self):
+        '''Returns the binary artifact maps for the current batch'''
+        self.binary_map_retrieved = True
+        return self.binary_maps
+    
+    
+def Binary_Mean_Absolut_Error(binary_maps):
+    '''Binary mean absolut error custom loss function'''
+    def bmae(y_true, y_pred):
+        abs_diff = K.abs(y_true - y_pred)
+        binary_abs_diff = abs_diff * binary_maps
+        sum_binary_abs_diff = K.sum(binary_abs_diff, axis=(1,2,3))
+        sum_binary_map = K.sum(binary_maps, axis=(1,2,3))
+        mean = sum_binary_abs_diff / sum_binary_map
+        loss = K.sum(mean)
+        return loss
+    return bmae
+    
+    
 class VGG:
-    'Class that contains building blocks for a residual VGG-like autoencoder network'
+    '''Class that contains building blocks for a residual VGG-like autoencoder network'''
     def __init__(self):
         self.layer_counting = {}
         
+        
     def Block(self, number_of_layers, units, kernel_size, padding, activation):
-        'A block of <number_of_layers> convolutions with batch normalization added AFTER the non-linearity'
+        '''A block of <number_of_layers> convolutions with batch normalization added AFTER the non-linearity'''
         def Input(z):
             for i in range(1,number_of_layers+1):
                 name = 'Conv' + str(kernel_size[0]) + '-' + str(units)
@@ -115,8 +147,9 @@ class VGG:
             return z
         return Input
     
+    
     def Residual_Downsampling_Block(self, units, kernel_size, padding, activation):
-        'A block with a strided convolution for downsampling an the start of a skip connection'
+        '''A block with a strided convolution for downsampling an the start of a skip connection'''
         def Input(z):
             skip = z
             name = 'DownConv' + str(kernel_size[0]) + '-' + str(units)
@@ -132,8 +165,9 @@ class VGG:
             return z, skip
         return Input
     
+    
     def Residual_Upsampling_Block(self, units, kernel_size, padding, activation):
-        'A block with a transposed convolution (also called deconvolution) and the incorporation of a provided skip connection'
+        '''A block with a transposed convolution (also called deconvolution) and the incorporation of a provided skip connection'''
         def Input(z, skip):
             name = 'UpConv' + str(kernel_size[0]) + '-' + str(units)
             # make sure we have unique layer names
@@ -151,8 +185,9 @@ class VGG:
             return z
         return Input
     
+    
     def Residual_Block(self, number_of_layers, units, kernel_size, padding, activation):
-        'A block of <number_of_layers> covolutions with provided skip connection incorporated after the last convolutional layer'
+        '''A block of <number_of_layers> covolutions with provided skip connection incorporated after the last convolutional layer'''
         def Input(z, skip):
             for i in range(1, number_of_layers+1):
                 name = 'Conv2D' + str(kernel_size[0]) + '-' + str(units)
@@ -171,6 +206,7 @@ class VGG:
                 z = BatchNormalization(name=name_bn)(z)
             return z
         return Input
+
 
 if __name__ == "__main__":
     
@@ -298,7 +334,7 @@ if __name__ == "__main__":
 
     model.compile(
             optimizer="adam",
-            loss="mae",
+            loss=Binary_Mean_Absolut_Error(training_generator.GetCurrentBatchBinaryMaps()),
             metrics=['mae', 'mse'])
 
     # TODO implement own loss function: https://towardsdatascience.com/advanced-keras-constructing-complex-custom-losses-and-metrics-c07ca130a618
@@ -308,7 +344,8 @@ if __name__ == "__main__":
            generator=training_generator,
            validation_data=validation_generator,
            epochs=30,
-           callbacks=callback_list)
+           callbacks=callback_list,
+           use_multiprocessing=False)   # never, NEVER! enable this option
     
     with open('history.json', 'w') as f:
         json.dump(hist.history, f)
