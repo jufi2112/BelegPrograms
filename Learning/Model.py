@@ -6,6 +6,10 @@ Created on Sun Oct 20 14:36:05 2019
 
 For a detailed explanation of the source code, consult the corresponding jupyter notebook file
 """
+import sys
+import warnings
+if not sys.warnoptions:
+    warnings.filterwarnings("ignore", category=FutureWarning)
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -118,7 +122,7 @@ def Binary_Mean_Absolut_Error(binary_maps):
         abs_diff = K.abs(y_true - y_pred)
         binary_abs_diff = abs_diff * binary_maps
         sum_binary_abs_diff = K.sum(binary_abs_diff, axis=(1,2,3))
-        sum_binary_map = K.sum(binary_maps, axis=(1,2,3))
+        sum_binary_map = K.sum(binary_maps.astype(np.float32), axis=(1,2,3))
         mean = sum_binary_abs_diff / sum_binary_map
         loss = K.sum(mean)
         return loss
@@ -219,7 +223,7 @@ if __name__ == "__main__":
     Parser.add_argument("-n", "--name_model", type=str, default="model", help="Name under which the final model should be saved")
     Parser.add_argument("-s", "--shuffle", type=bool, default=True, help="Whether the batches be shuffled for each epoch or not")
     Parser.add_argument("-i", "--input_scale", type=bool, default=True, help="Whether input images should be scaled to the range of [0,1] or not")
-    Parser.add_argument("-h", "--history", type=str, default="history", help="Name under which the final history should be saved")
+    Parser.add_argument("-o", "--history", type=str, default="history", help="Name under which the final history should be saved")
     args = Parser.parse_args()
     
     if not args.train:
