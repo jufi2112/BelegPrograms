@@ -12,7 +12,6 @@ if not sys.warnoptions:
     warnings.filterwarnings("ignore", category=FutureWarning)
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 from keras.utils import Sequence # for data generator class
 from keras.models import Model
@@ -26,6 +25,7 @@ from keras.callbacks import ModelCheckpoint, TensorBoard
 from time import gmtime, strftime
 import argparse
 
+
 class DataGenerator(Sequence):
     '''Assumes that examples in the provided folder are named from 1 to n, with n being the number of images'''
     def __init__(self, path_to_data_set='data/train', batch_size=32, image_size=(480,640), shuffle=True, scale_images=False):
@@ -36,10 +36,6 @@ class DataGenerator(Sequence):
         self.scale_images = scale_images
         self.training_size = self.__get_training_data_size(self.path_to_data)
         self.on_epoch_end()
-        self.binary_maps = np.empty((batch_size, *image_size, 1), dtype=np.bool)
-        # debug variable, can be deleted later on
-        self.binary_map_retrieved = True
-        self.zeros = np.zeros((self.batch_size, *self.image_size, 1), dtype=np.bool)
         
         
     def __get_training_data_size(self, path_to_data):
@@ -93,42 +89,37 @@ class DataGenerator(Sequence):
         # reshape ir and depth images
         X2 = X2.reshape(self.batch_size, 480, 640, 1)
         y = y.reshape(self.batch_size, 480, 640, 1)  
-        # create binary maps
-        if self.binary_map_retrieved == False:
-            print("Critical error in generator: binary maps are not created and retrieved sequentially!")
-        self.binary_maps = np.greater(y, self.zeros)
-        self.binary_map_retrieved = False
         return X1, X2, y
     
     
     def __getitem__(self, index):
         '''Generate one batch of data, X1 contains 8-bit RGB images, X2 16-bit infrared images and y corresponding 16-bit depth images'''
-        # Generate indices of data
+        # Generate indices of data   
         indices = self.indices[index*self.batch_size:(index+1)*self.batch_size]
         # Generate data
         X1, X2, y = self.__data_generation(indices)
         return [X1, X2], y
     
     
-    def GetCurrentBatchBinaryMaps(self):
-        '''Returns the binary artifact maps for the current batch'''
-        self.binary_map_retrieved = True
-        return self.binary_maps
-    
-    
-def Binary_Mean_Absolut_Error(binary_maps):
+def Binary_Mean_Absolut_Error(y_true, y_pred):
     '''Binary mean absolut error custom loss function'''
-    def bmae(y_true, y_pred):
-        abs_diff = K.abs(y_true - y_pred)
-        binary_abs_diff = abs_diff * binary_maps
-        sum_binary_abs_diff = K.sum(binary_abs_diff, axis=(1,2,3))
-        sum_binary_map = K.sum(binary_maps.astype(np.float32), axis=(1,2,3))
-        mean = sum_binary_abs_diff / sum_binary_map
-        loss = K.sum(mean)
-        return loss
-    return bmae
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    loss = K.sum(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i, 
+                        axis=(1,2,3)
+                ) 
+                    /
+                K.sum(
+                        A_i,
+                        axis=(1,2,3)
+                )
+           )
+    return loss
     
-    
+
 class VGG:
     '''Class that contains building blocks for a residual VGG-like autoencoder network'''
     def __init__(self):
@@ -363,11 +354,8 @@ if __name__ == "__main__":
 
     model.compile(
             optimizer="adam",
-            loss=Binary_Mean_Absolut_Error(training_generator.GetCurrentBatchBinaryMaps()),
-            metrics=['mae', 'mse', Binary_Mean_Absolut_Error(training_generator.GetCurrentBatchBinaryMaps())])
-
-    # TODO implement own loss function: https://towardsdatascience.com/advanced-keras-constructing-complex-custom-losses-and-metrics-c07ca130a618
-    # and https://medium.com/@yanfengliux/on-writing-custom-loss-functions-in-keras-e04290dd7a96
+            loss=Binary_Mean_Absolut_Error,
+            metrics=['mae', 'mse', Binary_Mean_Absolut_Error])
     
     hist = model.fit_generator(
            generator=training_generator,
