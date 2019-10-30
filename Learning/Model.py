@@ -364,7 +364,7 @@ if __name__ == "__main__":
     model.compile(
             optimizer="adam",
             loss=Binary_Mean_Absolut_Error(training_generator.GetCurrentBatchBinaryMaps()),
-            metrics=['mae', 'mse'])
+            metrics=['mae', 'mse', Binary_Mean_Absolut_Error(training_generator.GetCurrentBatchBinaryMaps())])
 
     # TODO implement own loss function: https://towardsdatascience.com/advanced-keras-constructing-complex-custom-losses-and-metrics-c07ca130a618
     # and https://medium.com/@yanfengliux/on-writing-custom-loss-functions-in-keras-e04290dd7a96
