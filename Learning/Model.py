@@ -20,6 +20,7 @@ from keras import backend as K
 import tensorflow as tf
 from keras.callbacks import ModelCheckpoint, TensorBoard
 from time import gmtime, strftime
+import argparse
 
 class DataGenerator(Sequence):
     '''Assumes that examples in the provided folder are named from 1 to n, with n being the number of images'''
@@ -209,29 +210,53 @@ class VGG:
 
 
 if __name__ == "__main__":
+    Parser = argparse.ArgumentParser(description="Training of a VGG-style autoencoder for depth map prediction")
+    Parser.add_argument("-t", "--train", type=str, default=None, help="Path to folder that contains the training and validation examples")
+    Parser.add_argument("-b", "--batch_size", type=int, default=4, help="Batch size to train the network with")
+    Parser.add_argument("-m", "--models", type=str, default="saved_models", help="Path to where to save the intermediate models to")
+    Parser.add_argument("-l", "--logs", type=str, default="logs", help="Path to where to save the training history (tensorboard logs) to")
+    Parser.add_argument("-e", "--epochs", type=int, default=30, help="Number of epochs to train the network on")
+    Parser.add_argument("-n", "--name_model", type=str, default="model", help="Name under which the final model should be saved")
+    Parser.add_argument("-s", "--shuffle", type=bool, default=True, help="Whether the batches be shuffled for each epoch or not")
+    Parser.add_argument("-i", "--input_scale", type=bool, default=True, help="Whether input images should be scaled to the range of [0,1] or not")
+    Parser.add_argument("-h", "--history", type=str, default="history", help="Name under which the final history should be saved")
+    args = Parser.parse_args()
+    
+    if not args.train:
+        print("No directory with training examples specified!")
+        print("For help use --help")
+        exit()
+        
+    if args.batch_size <= 0:
+        print("Invalid batch size supplied!")
+        exit()
+        
+    if args.epochs <= 0:
+        print("Invalid number of epochs supplied!")
+        exit()
     
     training_generator = DataGenerator(
-            path_to_data_set=os.path.join('data', 'train'),
-            batch_size=8,
+            path_to_data_set=os.path.join(args.train, 'train'),
+            batch_size=args.batch_size,
             image_size=(480,640),
-            shuffle=True,
-            scale_images=True
+            shuffle=args.shuffle,
+            scale_images=args.input_scale
         )
 
     validation_generator = DataGenerator(
-            path_to_data_set=os.path.join('data', 'validation'),
-            batch_size=8,
+            path_to_data_set=os.path.join(args.train, 'validation'),
+            batch_size=args.batch_size,
             image_size=(480,640),
-            shuffle=True,
-            scale_images=True
+            shuffle=args.shuffle,
+            scale_images=args.input_scale
         )
     
     current_date = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
     current_model_name = 'model_' + current_date + '_epoch_{epoch:04d}.h5'
-    os.makedirs('saved_models', exist_ok=True)
-    checkpoint_path = os.path.join('saved_models', current_model_name)
+    os.makedirs(args.models, exist_ok=True)
+    checkpoint_path = os.path.join(args.models, current_model_name)
     current_log_name = 'log_' + current_date
-    log_path = os.path.join('logs', current_log_name)
+    log_path = os.path.join(args.logs, current_log_name)
 
     checkpoint_callback = ModelCheckpoint(
             filepath=checkpoint_path,
@@ -343,11 +368,11 @@ if __name__ == "__main__":
     hist = model.fit_generator(
            generator=training_generator,
            validation_data=validation_generator,
-           epochs=30,
+           epochs=args.epochs,
            callbacks=callback_list,
            use_multiprocessing=False)   # never, NEVER! enable this option
     
-    with open('history.json', 'w') as f:
+    with open(args.history+'.json', 'w') as f:
         json.dump(hist.history, f)
     
-    model.save('model.h5')
+    model.save(args.name_model+'.h5')
