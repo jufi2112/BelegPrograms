@@ -5,27 +5,54 @@ Created on Sun Oct 27 17:46:13 2019
 @author: Julien Fischer
 """
 
+import sys
+import warnings
+if not sys.warnoptions:
+    warnings.filterwarnings("ignore", category=FutureWarning)
 import os
 from keras.models import load_model
+import keras.backend as K
 import cv2
 from pathlib import Path
 import numpy as np
 import argparse
 import math
 
+# the custom loss function
+def Binary_Mean_Absolut_Error(y_true, y_pred):
+    '''Binary mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    loss = K.sum(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i, 
+                        axis=(1,2,3)
+                ) 
+                    /
+                K.sum(
+                        A_i,
+                        axis=(1,2,3)
+                )
+           )
+    return loss
+
 # The Predictor Class itself
 class DepthPredictor:
-    def __init__(self, path_to_model):
+    def __init__(self, path_to_model, model_uses_custom_loss):
         self.color = []
         self.infrared = []
         self.depth = []
-        self.model = self.__load_model(path_to_model)
+        self.model = self.__load_model(path_to_model, model_uses_custom_loss)
         self.image_write_counter = 1
         
         
-    def __load_model(self, path):
+    def __load_model(self, path, model_uses_custom_loss):
         if os.path.isfile(path):
-            return load_model(path)
+            if model_uses_custom_loss:
+                return load_model(path, custom_objects={'Binary_Mean_Absolut_Error': Binary_Mean_Absolut_Error})
+            else:
+                return load_model(path)
         else:
             print('Unable to load specified model: No such file!')
             return None
@@ -268,6 +295,7 @@ if __name__ == '__main__':
     Parser.add_argument("-m", "--model", type=str, default=None, help="Path to the model that should be utilized for predicting depth images.")
     Parser.add_argument("-o", "--output", type=str, default=None, help="Path to where the predicted images should be saved to.")
     Parser.add_argument("-n", "--normalize_input", type=bool, default=True, help="Whether the input images should be normalized to the range from 0 to 1 or not.")   
+    Parser.add_argument("-l", "--loss_custom", type=bool, help="Whether the utilized model uses the custom loss function or not")
     args = Parser.parse_args()
     
     # necessary parameters
@@ -286,10 +314,15 @@ if __name__ == '__main__':
         print("For help use --help")
         exit()
        
+    if not args.loss_custom:
+        print("Not specified whether the model uses a custom loss.")
+        print("For help use --help")
+        exit()
+        
     time_start = cv2.getTickCount()  
     
     # create depth predictor
-    dp = DepthPredictor(args.model)
+    dp = DepthPredictor(args.model, model_uses_custom_loss=args.loss_custom)
     
     # load images
     if args.folder is None:
