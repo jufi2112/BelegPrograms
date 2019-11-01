@@ -21,6 +21,6 @@ OUTFILE="prediction_output.txt"
 
 module load modenv/ml
 module load TensorFlow/1.14.0-PythonAnaconda-3.6
-python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/DepthPredictor.py -f /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data/validation -v histogram -b 4 -m /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/model.h5 -o /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/predictions -n True > "$OUTFILE"
+python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/DepthPredictor.py -f /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data/validation -v histogram -b 4 -m /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/model.h5 -o /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/predictions -n True -l True > "$OUTFILE"
 
 exit 0
