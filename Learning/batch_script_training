@@ -17,10 +17,10 @@
 
 # Set the max number of threads to use for programs using OpenMP. Should be <= ppn. Does nothing if the program doesn't use OpenMP.
 export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
-OUTFILE="training_output.txt"
+OUTFILE="training_output_new.txt"
 
 module load modenv/ml
 module load TensorFlow/1.14.0-PythonAnaconda-3.6
-python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model.py  > "$OUTFILE"
+python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -b 4 -e 60 -s True -i True -m /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/new_models_sgd -l /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/new_logs_sgd -y new_history_sgd -n model_sgd_40_epochs -p 2 -o "sgd" > "$OUTFILE"
 
 exit 0
