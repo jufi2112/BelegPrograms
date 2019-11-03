@@ -214,7 +214,9 @@ if __name__ == "__main__":
     Parser.add_argument("-n", "--name_model", type=str, default="model", help="Name under which the final model should be saved")
     Parser.add_argument("-s", "--shuffle", type=bool, default=True, help="Whether the batches be shuffled for each epoch or not")
     Parser.add_argument("-i", "--input_scale", type=bool, default=True, help="Whether input images should be scaled to the range of [0,1] or not")
-    Parser.add_argument("-o", "--history", type=str, default="history", help="Name under which the final history should be saved")
+    Parser.add_argument("-y", "--history", type=str, default="history", help="Name under which the final history should be saved")
+    Parser.add_argument("-o", "--optimizer", type=str, default="adam", help="The optimizer to utilize for training. Can be either a standard keras optimizer, or one of the following: [None at the moment]")
+    Parser.add_argument("-p", "--periods", type=int, default=1, help="Number of epochs after which to save the current model (and its weights). 1 means every epoche.")
     args = Parser.parse_args()
     
     if not args.train:
@@ -259,7 +261,7 @@ if __name__ == "__main__":
             save_best_only=False,
             save_weights_only=False,
             mode='auto',
-            period=1)
+            period=args.periods)
 
     tensorboard_callback = TensorBoard(
             log_dir=log_path,
@@ -353,7 +355,7 @@ if __name__ == "__main__":
     model = Model(inputs=[x.input, y.input], outputs=z)
 
     model.compile(
-            optimizer="adam",
+            optimizer=args.optimizer,
             loss=Binary_Mean_Absolut_Error,
             metrics=['mae', 'mse', Binary_Mean_Absolut_Error])
     
@@ -361,8 +363,7 @@ if __name__ == "__main__":
            generator=training_generator,
            validation_data=validation_generator,
            epochs=args.epochs,
-           callbacks=callback_list,
-           use_multiprocessing=False)   # never, NEVER! enable this option
+           callbacks=callback_list)
     
     with open(args.history+'.json', 'w') as f:
         json.dump(hist.history, f)
