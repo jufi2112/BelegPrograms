@@ -26,6 +26,7 @@ from keras.callbacks import ModelCheckpoint, TensorBoard, LearningRateScheduler
 from time import gmtime, strftime
 import argparse
 import matplotlib.pyplot as plt
+import pickle
 
 
 class LearningRateDecay:
@@ -274,15 +275,15 @@ if __name__ == "__main__":
     optimizer = None
     if args.custom:
         if args.optimizer.lower() == 'adam':
-            optimizer = Adam(learning_rate=0.001)
+            optimizer = Adam(lr=0.001)
             schedule = StepDecay(initAlpha=0.001, factor=args.factor_decay, dropEvery=args.decay)
         
         elif args.optimizer.lower() == 'rmsprop':
-            optimizer = RMSprop(leaning_rate=0.001)
+            optimizer = RMSprop(lr=0.001)
             schedule = StepDecay(initAlpha=0.001, factor=args.factor_decay, dropEvery=args.decay)
         
         elif args.optimizer.lower() == 'sgd':
-            optimizer = SGD(learning_rate=0.01)
+            optimizer = SGD(lr=0.01)
             schedule = StepDecay(initAlpha=0.01, factor=args.factor_decay, dropEvery=args.decay)
 
         if optimizer is None:
@@ -446,7 +447,7 @@ if __name__ == "__main__":
         plt.savefig(args.optimizer + '_' + str(args.epochs) + '_lr')
     
     
-    with open(args.history+'.json', 'w') as f:
-        json.dump(hist.history, f)
+    with open(args.history, 'wb') as f:
+        pickle.dump(hist.history, f)
     
     model.save(args.name_model+'.h5')
