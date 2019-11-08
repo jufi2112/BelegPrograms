@@ -19,7 +19,6 @@ from keras.layers import Input, Conv2D, Activation, BatchNormalization, Dropout,
 from keras.layers import Add # for skip connections
 from keras.utils import plot_model
 from keras.optimizers import Adam, SGD, RMSprop
-import json # for saving training history
 from keras import backend as K
 import tensorflow as tf
 from keras.callbacks import ModelCheckpoint, TensorBoard, LearningRateScheduler
