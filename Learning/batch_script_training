@@ -17,14 +17,20 @@
 
 # Set the max number of threads to use for programs using OpenMP. Should be <= ppn. Does nothing if the program doesn't use OpenMP.
 export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
-OUTFILE="training_output_new.txt"
+
 # The optimizer to utilize
 OPT=adam
+
 # The number of epochs
 EPOCHS=100
 
+# folder needs to exist!!!
+SAVE_FOLDER="results_training/""$OPT"_"$EPOCHS"
+
+OUTFILE=$SAVE_FOLDER"/training_output.txt"
+
 module load modenv/ml
 module load TensorFlow/1.14.0-PythonAnaconda-3.6
-python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model_VGG_Style.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -b 4 -e $EPOCHS -s True -i True -m /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/models/models_"$OPT"_"$EPOCHS" -l /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/logs/logs_"$OPT"_"$EPOCHS" -y /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/histories/history_"$OPT"_"$EPOCHS" -n /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/models_final/model_"$OPT"_"$EPOCHS"_final -p 5 -o "$OPT" -d 10 -f 0.5 -c True > "$OUTFILE"
+python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model_VGG_Style.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -x /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/"$SAVE_FOLDER" -b 4 -e $EPOCHS -s True -i True -p 5 -o "$OPT" -d 10 -f 0.5 -c True > "$OUTFILE"
 
 exit 0

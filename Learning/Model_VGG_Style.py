@@ -135,8 +135,8 @@ class DataGenerator(Sequence):
         return [X1, X2], y
     
     
-def Binary_Mean_Absolut_Error(y_true, y_pred):
-    '''Binary mean absolut error custom loss function'''
+def Masked_Mean_Absolute_Error(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
     # create binary artifact maps from ground truth depth maps
     A_i = K.greater(y_true, 0)
     A_i = K.cast(A_i, dtype='float32')
@@ -152,8 +152,22 @@ def Binary_Mean_Absolut_Error(y_true, y_pred):
                 )
            )
     return loss
-    
 
+
+def berHu(c):
+    '''Reverse Huber loss as stated in paper "Deeper Depth Prediction with Fully Convolutional Residual Networks" by Laina et al. and "The berhu
+       penalty and the grouped effect" by L. Zwald and S. Lambert-Lacroix'''
+    # TODO does this current implementation makes sense?
+    # TODO implement this with binary mask too?
+    def inverse_huber(y_true, y_pred):
+        threshold = c * K.max(K.abs(y_true - y_pred))
+        absolute_mean = K.mean(K.abs(y_true - y_pred))
+        mask = K.less_equal(absolute_mean, threshold)
+        mask = K.cast(mask, dtype='float32')
+        return mask * absolute_mean + (1-mask) * K.mean(K.square(K.abs(y_true - y_pred)))
+    return inverse_huber
+        
+    
 class VGG:
     '''Class that contains building blocks for a residual VGG-like autoencoder network'''
     def __init__(self):
@@ -241,14 +255,11 @@ class VGG:
 if __name__ == "__main__":
     Parser = argparse.ArgumentParser(description="Training of a VGG-style autoencoder for depth map prediction")
     Parser.add_argument("-t", "--train", type=str, default=None, help="Path to folder that contains the training and validation examples")
+    Parser.add_argument("-x", "--output", type=str, default=None, help="Path to folder where all output is saved to")
     Parser.add_argument("-b", "--batch_size", type=int, default=4, help="Batch size to train the network with")
-    Parser.add_argument("-m", "--models", type=str, default="saved_models", help="Path to where to save the intermediate models to")
-    Parser.add_argument("-l", "--logs", type=str, default="logs", help="Path to where to save the training history (tensorboard logs) to")
     Parser.add_argument("-e", "--epochs", type=int, default=30, help="Number of epochs to train the network on")
-    Parser.add_argument("-n", "--name_model", type=str, default="model", help="Name under which the final model should be saved")
     Parser.add_argument("-s", "--shuffle", type=bool, default=True, help="Whether the batches should be shuffled for each epoch or not")
     Parser.add_argument("-i", "--input_scale", type=bool, default=True, help="Whether input images should be scaled to the range of [0,1] or not")
-    Parser.add_argument("-y", "--history", type=str, default="history", help="Name under which the final history should be saved")
     Parser.add_argument("-o", "--optimizer", type=str, default="rmsprop", help="The optimizer to utilize for training. Supported are SGD, Adam and RMSprop.")
     Parser.add_argument("-p", "--periods", type=int, default=1, help="Number of epochs after which to save the current model (and its weights). 1 means every epoch.")
     Parser.add_argument("-d", "--decay", type=int, default=10, help="Reduce learning rate after every x epochs. Defaults to 10")
@@ -256,19 +267,44 @@ if __name__ == "__main__":
     Parser.add_argument("-c", "--custom", type=bool, default=True, help="If set to false, all keras optimizers can be passed, not only SGD, Adam and RMSprop. This will deactivate learning rate decay.")
     args = Parser.parse_args()
     
-    if not args.train:
+    # training directory specified?
+    if args.train is None:
         print("No directory with training examples specified!")
         print("For help use --help")
         exit()
         
+    # does train folder exists?
+    if not os.path.isdir(os.path.join(args.train, 'train')):
+        print("Provided training directory contains no subfolder 'train'")
+        exit()
+        
+    # valid batch size?
     if args.batch_size <= 0:
         print("Invalid batch size supplied!")
         exit()
         
+    # valid epochs?
     if args.epochs <= 0:
         print("Invalid number of epochs supplied!")
         exit()
         
+    # output directory specified?
+    if args.output is None:
+        print("No output directory specified!")
+        print("For help use --help")
+        exit()
+        
+    # create output directory
+    os.makedirs(args.output, exist_ok=True)
+    # create folder for logs
+    log_dir = os.path.join(args.output, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    # create folder for intermediate models
+    model_dir = os.path.join(args.output, 'models')
+    os.makedirs(model_dir, exist_ok=True)
+    # create folder for figures
+    figure_dir = os.path.join(args.output, 'figures')
+    os.makedirs(figure_dir, exist_ok=True)        
         
     schedule = None
     optimizer = None
@@ -286,7 +322,7 @@ if __name__ == "__main__":
             schedule = StepDecay(initAlpha=0.01, factor=args.factor_decay, dropEvery=args.decay)
 
         if optimizer is None:
-            print("Unsupported optimizer provided")
+            print("Unsupported optimizer provided. If you want to use this unsupported optimizer, provide --custom False")
             print("For help use --help")
             exit()
     else:
@@ -300,20 +336,24 @@ if __name__ == "__main__":
             scale_images=args.input_scale
         )
 
-    validation_generator = DataGenerator(
-            path_to_data_set=os.path.join(args.train, 'validation'),
-            batch_size=args.batch_size,
-            image_size=(480,640),
-            shuffle=args.shuffle,
-            scale_images=args.input_scale
-        )
+    validation_generator = None
+    if os.path.isdir(os.path.join(args.train, 'validation')):
+        validation_generator = DataGenerator(
+                path_to_data_set=os.path.join(args.train, 'validation'),
+                batch_size=args.batch_size,
+                image_size=(480,640),
+                shuffle=args.shuffle,
+                scale_images=args.input_scale
+            )
+        print("Using validation data")
+    else:
+        print("Not using validation data, because none where specified")
     
     current_date = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
     current_model_name = 'model_' + current_date + '_epoch_{epoch:04d}.h5'
-    os.makedirs(args.models, exist_ok=True)
-    checkpoint_path = os.path.join(args.models, current_model_name)
+    checkpoint_path = os.path.join(model_dir, current_model_name)
     current_log_name = 'log_' + current_date
-    log_path = os.path.join(args.logs, current_log_name)
+    log_path = os.path.join(log_dir, current_log_name)
 
     checkpoint_callback = ModelCheckpoint(
             filepath=checkpoint_path,
@@ -418,8 +458,8 @@ if __name__ == "__main__":
 
     model.compile(
             optimizer=optimizer,
-            loss=Binary_Mean_Absolut_Error,
-            metrics=['mae', 'mse', Binary_Mean_Absolut_Error, "accuracy"])
+            loss=Masked_Mean_Absolute_Error,
+            metrics=['mae', 'mse', Masked_Mean_Absolute_Error, "accuracy", berHu(0.2)])
     
     hist = model.fit_generator(
            generator=training_generator,
@@ -427,26 +467,23 @@ if __name__ == "__main__":
            epochs=args.epochs,
            callbacks=callback_list)
     
-    # plot the learning rate as well as loss and accuracy
+    # plot the learning rate and loss
     N = np.arange(0, args.epochs)
     plt.style.use("ggplot")
     plt.figure()
     plt.plot(N, hist.history["loss"], label="train_loss")
     plt.plot(N, hist.history["val_loss"], label="val_loss")
-    plt.plot(N, hist.history["acc"], label="train_acc")
-    plt.plot(N, hist.history["val_acc"], label="val_acc")
-    plt.title("Training Loss and Accuracy with Optimizer: " + args.optimizer)
+    plt.title("Training Loss with Optimizer: " + args.optimizer)
     plt.xlabel("Epochs")
-    plt.ylabel("Loss/Accuracy")
+    plt.ylabel("Loss")
     plt.legend()
-    plt.savefig(args.optimizer + '_' + str(args.epochs) + '_metrics')
+    plt.savefig(os.path.join(figure_dir,args.optimizer + '_' + str(args.epochs) + '_metrics'))
     
     if schedule is not None:
         schedule.plot(N)
-        plt.savefig(args.optimizer + '_' + str(args.epochs) + '_lr')
+        plt.savefig(os.path.join(figure_dir,args.optimizer + '_' + str(args.epochs) + '_lr'))
     
     
-    with open(args.history, 'wb') as f:
-        pickle.dump(hist.history, f)
+    pickle.dump(hist.history, open(os.path.join(args.output,'history.p'), 'wb'))
     
-    model.save(args.name_model+'.h5')
+    model.save(os.path.join(args.output,'final_model.h5'))
