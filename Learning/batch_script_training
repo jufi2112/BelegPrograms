@@ -2,7 +2,7 @@
 
 #Submit this script with: sbatch thefilename
 
-#SBATCH --time=40:00:00   # walltime
+#SBATCH --time=50:00:00   # walltime
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks=1      # limit to one node
@@ -24,13 +24,13 @@ OPT=adam
 # The number of epochs
 EPOCHS=100
 
-# folder needs to exist!!!
 SAVE_FOLDER="results_training/""$OPT"_"$EPOCHS"
 
 OUTFILE=$SAVE_FOLDER"/training_output.txt"
 
+mkdir -p $SAVE_FOLDER
 module load modenv/ml
 module load TensorFlow/1.14.0-PythonAnaconda-3.6
-python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model_VGG_Style.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -x /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/"$SAVE_FOLDER" -b 4 -e $EPOCHS -s True -i True -p 5 -o "$OPT" -d 10 -f 0.5 -c True > "$OUTFILE"
+python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model_VGG_Style.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -x /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/"$SAVE_FOLDER" -b 4 -e $EPOCHS -s True -i True -p 5 -o "$OPT" -d 10 -f 0.5 -c True -m 0.6 > "$OUTFILE"
 
 exit 0
