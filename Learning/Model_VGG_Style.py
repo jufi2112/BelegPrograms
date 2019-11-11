@@ -156,7 +156,7 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
 def berHu(c):
     '''Reverse Huber loss as stated in paper "Deeper Depth Prediction with Fully Convolutional Residual Networks" by Laina et al. and "The berhu
        penalty and the grouped effect" by L. Zwald and S. Lambert-Lacroix'''
-    # TODO does this current implementation makes sense?
+    # does this current implementation makes sense? --> yes, it returns mae or mse
     # TODO implement this with binary mask too?
     def inverse_huber(y_true, y_pred):
         threshold = c * K.max(K.abs(y_true - y_pred))
@@ -173,8 +173,8 @@ class VGG:
         self.layer_counting = {}
         
         
-    def Block(self, number_of_layers, units, kernel_size, padding, activation, momentum_bn):
-        '''A block of <number_of_layers> convolutions with batch normalization added AFTER the non-linearity'''
+    def Block(self, number_of_layers, units, kernel_size, padding, activation, use_bn, momentum_bn):
+        '''A block of <number_of_layers> convolutions with optional batch normalization added AFTER the non-linearity'''
         def Input(z):
             for i in range(1,number_of_layers+1):
                 name = 'Conv' + str(kernel_size[0]) + '-' + str(units)
@@ -184,14 +184,15 @@ class VGG:
                 else:
                     self.layer_counting[name] = 1
                 name += '_' + str(self.layer_counting[name])
-                name_bn = name + '_BN'
                 z = Conv2D(filters=units, kernel_size=kernel_size, padding=padding, activation=activation, name=name)(z)
-                z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
+                if use_bn:
+                    name_bn = name + '_BN'
+                    z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
             return z
         return Input
     
     
-    def Residual_Downsampling_Block(self, units, kernel_size, padding, activation, momentum_bn):
+    def Residual_Downsampling_Block(self, units, kernel_size, padding, activation, use_bn, momentum_bn):
         '''A block with a strided convolution for downsampling an the start of a skip connection'''
         def Input(z):
             skip = z
@@ -202,14 +203,15 @@ class VGG:
             else:
                 self.layer_counting[name] = 1
             name += '_' + str(self.layer_counting[name])
-            name_bn = name + '_BN'
             z = Conv2D(filters=units, kernel_size=kernel_size, strides=(2,2), padding=padding, activation=activation, name=name)(z)
-            z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
+            if use_bn:
+                name_bn = name + '_BN'
+                z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
             return z, skip
         return Input
     
     
-    def Residual_Upsampling_Block(self, units, kernel_size, padding, activation, momentum_bn):
+    def Residual_Upsampling_Block(self, units, kernel_size, padding, activation, use_bn, momentum_bn):
         '''A block with a transposed convolution (also called deconvolution) and the incorporation of a provided skip connection'''
         def Input(z, skip):
             name = 'UpConv' + str(kernel_size[0]) + '-' + str(units)
@@ -220,16 +222,17 @@ class VGG:
                 self.layer_counting[name] = 1
             name += '_' + str(self.layer_counting[name])
             name_add = name + '_skip'
-            name_bn = name + '_BN'
             z = Conv2DTranspose(filters=units, kernel_size=kernel_size, strides=(2,2), padding="same", name=name)(z)
             z = Add(name=name_add)([z, skip])
             z = Activation(activation)(z)
-            z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
+            if use_bn:
+                name_bn = name + '_BN'
+                z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
             return z
         return Input
     
     
-    def Residual_Block(self, number_of_layers, units, kernel_size, padding, activation, momentum_bn):
+    def Residual_Block(self, number_of_layers, units, kernel_size, padding, activation, use_bn, momentum_bn):
         '''A block of <number_of_layers> covolutions with provided skip connection incorporated after the last convolutional layer'''
         def Input(z, skip):
             for i in range(1, number_of_layers+1):
@@ -241,12 +244,13 @@ class VGG:
                     self.layer_counting[name] = 1
                 name += '_' + str(self.layer_counting[name])
                 name_add = name + '_skip'
-                name_bn = name + '_BN'
                 z = Conv2D(filters=units, kernel_size=kernel_size, padding=padding)(z)
                 if i == number_of_layers:
                     z = Add(name=name_add)([z, skip])
                 z = Activation(activation)(z)
-                z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
+                if use_bn:
+                    name_bn = name + '_BN'
+                    z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
             return z
         return Input
 
@@ -257,13 +261,14 @@ if __name__ == "__main__":
     Parser.add_argument("-x", "--output", type=str, default=None, help="Path to folder where all output is saved to")
     Parser.add_argument("-b", "--batch_size", type=int, default=4, help="Batch size to train the network with")
     Parser.add_argument("-e", "--epochs", type=int, default=30, help="Number of epochs to train the network on")
-    Parser.add_argument("-s", "--shuffle", type=bool, default=True, help="Whether the batches should be shuffled for each epoch or not")
-    Parser.add_argument("-i", "--input_scale", type=bool, default=True, help="Whether input images should be scaled to the range of [0,1] or not")
+    Parser.add_argument("--no_shuffle", default=False, action='store_true', help="Disables shuffling of batches for each epoch")
+    Parser.add_argument("--no_scale", default=False, action='store_true', help="Disables scaling of input images to the range of [0,1]")
     Parser.add_argument("-o", "--optimizer", type=str, default="rmsprop", help="The optimizer to utilize for training. Supported are SGD, Adam and RMSprop.")
     Parser.add_argument("-p", "--periods", type=int, default=1, help="Number of epochs after which to save the current model (and its weights). 1 means every epoch.")
     Parser.add_argument("-d", "--decay", type=int, default=10, help="Reduce learning rate after every x epochs. Defaults to 10")
     Parser.add_argument("-f", "--factor_decay", type=float, default=0.5, help="Factor to reduce the learning rate. Defaults to 0.5")
-    Parser.add_argument("-c", "--custom", type=bool, default=True, help="If set to false, all keras optimizers can be passed, not only SGD, Adam and RMSprop. This will deactivate learning rate decay.")
+    Parser.add_argument("--default_optimizers", default=False, action='store_true', help="Enable all keras optimizers, not only SGD, Adam and RMSprop. This will deactivate learning rate decay.")
+    Parser.add_argument("--omit_batchnorm", default=False, action='store_true', help="Don't add batch normalization layers after convolutions.")
     Parser.add_argument("-m", "--momentum", type=float, default=0.99, help="Momentum used in batch normalization layers. Defaults to 0.99. If validation loss oscillates, try lowering it (e.g. to 0.6)")
     args = Parser.parse_args()
     
@@ -309,7 +314,7 @@ if __name__ == "__main__":
         
     schedule = None
     optimizer = None
-    if args.custom:
+    if not args.default_optimizers:
         if args.optimizer.lower() == 'adam':
             optimizer = Adam(lr=0.001)
             schedule = StepDecay(initAlpha=0.001, factor=args.factor_decay, dropEvery=args.decay)
@@ -333,8 +338,8 @@ if __name__ == "__main__":
             path_to_data_set=os.path.join(args.train, 'train'),
             batch_size=args.batch_size,
             image_size=(480,640),
-            shuffle=args.shuffle,
-            scale_images=args.input_scale
+            shuffle=not args.no_shuffle,
+            scale_images=not args.no_scale
         )
 
     validation_generator = None
@@ -343,8 +348,8 @@ if __name__ == "__main__":
                 path_to_data_set=os.path.join(args.train, 'validation'),
                 batch_size=args.batch_size,
                 image_size=(480,640),
-                shuffle=args.shuffle,
-                scale_images=args.input_scale
+                shuffle=not args.no_shuffle,
+                scale_images=not args.no_scale
             )
         print("Using validation data")
     else:
@@ -394,63 +399,63 @@ if __name__ == "__main__":
 
     # VGG16 style encoder (configuration D)
 
-    z = vgg.Block(number_of_layers=2, units=64, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(combined)
+    z = vgg.Block(number_of_layers=2, units=64, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(combined)
     # max pooling replaced with strided convolution + first skip connection start
-    z, skip_one = vgg.Residual_Downsampling_Block(units=64, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z, skip_one = vgg.Residual_Downsampling_Block(units=64, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
-    z = vgg.Block(number_of_layers=2, units=128, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Block(number_of_layers=2, units=128, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
     # max pooling replaced with strided convolution + second skip connection start
-    z, skip_two = vgg.Residual_Downsampling_Block(units=128, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z, skip_two = vgg.Residual_Downsampling_Block(units=128, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
-    z = vgg.Block(number_of_layers=3, units=256, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Block(number_of_layers=3, units=256, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
     # max pooling replaced with strided convolution + third skip connection start
-    z, skip_three = vgg.Residual_Downsampling_Block(units=256, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z, skip_three = vgg.Residual_Downsampling_Block(units=256, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
-    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
     # max pooling replaced with strided convolution + fourth skip connection start
-    z, skip_four = vgg.Residual_Downsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z, skip_four = vgg.Residual_Downsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
-    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
     # max pooling replaced with strided convolution + fifth skip connection start
-    z, skip_five = vgg.Residual_Downsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z, skip_five = vgg.Residual_Downsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # end of encoder part
 
-    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # start of decoder part (= mirrored encoder part)
 
     # upsampling with deconvolution + fifth skip connection target
-    z = vgg.Residual_Upsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z, skip_five)
-    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Residual_Upsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_five)
+    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # upsampling with deconvolution + fourth skip connection target
-    z = vgg.Residual_Upsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z, skip_four)
-    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Residual_Upsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_four)
+    z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
     # upsampling with deconvolution + third skip connection target
-    z = vgg.Residual_Upsampling_Block(units=256, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z, skip_three)
-    z = vgg.Block(number_of_layers=3, units=256, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Residual_Upsampling_Block(units=256, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_three)
+    z = vgg.Block(number_of_layers=3, units=256, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
     # upsampling with deconvolution + second skip connection target
-    z = vgg.Residual_Upsampling_Block(units=128, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z, skip_two)
-    z = vgg.Block(number_of_layers=2, units=128, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Residual_Upsampling_Block(units=128, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_two)
+    z = vgg.Block(number_of_layers=2, units=128, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
 
     # upsampling with deconvolution + first skip connection target
-    z = vgg.Residual_Upsampling_Block(units=64, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z, skip_one)
-    z = vgg.Block(number_of_layers=2, units=64, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z)
+    z = vgg.Residual_Upsampling_Block(units=64, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_one)
+    z = vgg.Block(number_of_layers=2, units=64, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # end of decoder part
     
     # TODO does incorporating skip_zero in this way makes sense?
-    z = vgg.Residual_Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", momentum_bn=args.momentum)(z, skip_zero)
+    z = vgg.Residual_Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_zero)
 
     # output layer
     z = Conv2D(1, kernel_size=(3,3), padding="same", name="Conv_Output")(z)
