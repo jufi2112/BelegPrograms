@@ -294,8 +294,12 @@ if __name__ == '__main__':
     Parser.add_argument("-b", "--batch_size", type=int, default=1, help="When multiple depth images should be predicted, this is the batch size that should be utilized while predicting.")
     Parser.add_argument("-m", "--model", type=str, default=None, help="Path to the model that should be utilized for predicting depth images.")
     Parser.add_argument("-o", "--output", type=str, default=None, help="Path to where the predicted images should be saved to.")
+    
+    Parser.add_argument("--no_scaling", default=False, action='store_true', help="Don't scale the input images to the range [0,1]")
     Parser.add_argument("-n", "--normalize_input", type=bool, default=True, help="Whether the input images should be normalized to the range from 0 to 1 or not.")   
+    
     Parser.add_argument("-l", "--loss_custom", type=bool, help="Whether the utilized model uses the custom loss function or not")
+
     args = Parser.parse_args()
     
     # necessary parameters
