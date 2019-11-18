@@ -449,6 +449,7 @@ if __name__ == '__main__':
     Parser.add_argument("--force_histogram", default=False, action='store_true', help="When normalizing depth images, force histogram equalization even if ground truth depth is available")
     # TODO implement force_histogram option
     # TODO implement multi image prediction possibility
+    # TODO implement histogram visualization
 
     args = Parser.parse_args()
     
