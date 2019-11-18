@@ -447,6 +447,8 @@ if __name__ == '__main__':
     Parser.add_argument("--no_processing", default=False, action='store_true', help="Predicted depth image's range is not clipped to 16 bit. Can result in strange behavior.")
     Parser.add_argument("--old_model", default=False, action='store_true', help="For old models, the loss function was called binary mean absolut error. Activate this if an 'Unknown loss function' error is thrown.")
     Parser.add_argument("--force_histogram", default=False, action='store_true', help="When normalizing depth images, force histogram equalization even if ground truth depth is available")
+    # TODO implement force_histogram option
+    # TODO implement multi image prediction possibility
 
     args = Parser.parse_args()
     
