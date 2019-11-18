@@ -232,7 +232,7 @@ class VGG:
         return Input
     
     
-    def Residual_Block(self, number_of_layers, units, kernel_size, padding, activation, use_bn, momentum_bn):
+    def Residual_Block(self, number_of_layers, units, kernel_size, padding, activation, use_bn, momentum_bn, skip_integration_mode='add'):
         '''A block of <number_of_layers> covolutions with provided skip connection incorporated after the last convolutional layer'''
         def Input(z, skip):
             for i in range(1, number_of_layers+1):
@@ -246,11 +246,15 @@ class VGG:
                 name_add = name + '_skip'
                 z = Conv2D(filters=units, kernel_size=kernel_size, padding=padding)(z)
                 if i == number_of_layers:
-                    z = Add(name=name_add)([z, skip])
+                    if skip_integration_mode.lower() == 'add':
+                        z = Add(name=name_add)([z, skip])
                 z = Activation(activation)(z)
                 if use_bn:
                     name_bn = name + '_BN'
                     z = BatchNormalization(name=name_bn, momentum=momentum_bn)(z)
+                if i == number_of_layers:
+                    if skip_integration_mode.lower() == 'concat':
+                        z = concatenate([skip, z], name='Concatenate_Skip_0')
             return z
         return Input
 
@@ -270,6 +274,7 @@ if __name__ == "__main__":
     Parser.add_argument("--default_optimizers", default=False, action='store_true', help="Enable all keras optimizers, not only SGD, Adam and RMSprop. This will deactivate learning rate decay.")
     Parser.add_argument("--omit_batchnorm", default=False, action='store_true', help="Don't add batch normalization layers after convolutions.")
     Parser.add_argument("-m", "--momentum", type=float, default=0.99, help="Momentum used in batch normalization layers. Defaults to 0.99. If validation loss oscillates, try lowering it (e.g. to 0.6)")
+    Parser.add_argument("--skip_0", type=str, default="add", help="Functionality of S0 skip connections. One of the following: 'add', 'concat', 'concat+' or 'disable'. Defaults to 'add'. 'Concat+' adds convolutions after concatenating.")
     args = Parser.parse_args()
     
     # training directory specified?
@@ -299,6 +304,13 @@ if __name__ == "__main__":
         print("No output directory specified!")
         print("For help use --help")
         exit()
+        
+    # skip connection 0 arguments
+    s0_arg = args.skip_0.lower()
+    if s0_arg != 'add' and s0_arg != 'concat' and s0_arg != 'disable' and s0_arg != 'concat+':
+        print("Invalid argument for '--skip_0': " + s0_arg)
+        print("Defaulting to 'add'")
+        s0_arg = 'add'
         
     # create output directory
     os.makedirs(args.output, exist_ok=True)
@@ -392,7 +404,7 @@ if __name__ == "__main__":
     y = Model(inputs=input_ir, outputs=input_ir)
 
     # combine both branches
-    combined = concatenate([x.output, y.output], name="Concatenate")
+    combined = concatenate([x.output, y.output], name="Concatenate_Input")
 
     # zeroth skip connection start --> to transfer original input images to the end of the network
     skip_zero = combined
@@ -433,6 +445,7 @@ if __name__ == "__main__":
     z = vgg.Residual_Upsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_five)
     z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
+
     # upsampling with deconvolution + fourth skip connection target
     z = vgg.Residual_Upsampling_Block(units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_four)
     z = vgg.Block(number_of_layers=3, units=512, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
@@ -454,8 +467,12 @@ if __name__ == "__main__":
 
     # end of decoder part
     
-    # TODO does incorporating skip_zero in this way makes sense?
-    z = vgg.Residual_Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z, skip_zero)
+    if s0_arg == 'add':
+        z = vgg.Residual_Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum, skip_integration_mode='add')(z, skip_zero)
+    elif s0_arg == 'concat' or s0_arg == 'concat+':
+        z = vgg.Residual_Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum, skip_integration_mode='concat')(z, skip_zero)
+        if s0_arg == 'concat+':
+            z = vgg.Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # output layer
     z = Conv2D(1, kernel_size=(3,3), padding="same", name="Conv_Output")(z)
