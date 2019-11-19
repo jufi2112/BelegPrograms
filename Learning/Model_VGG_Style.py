@@ -134,7 +134,7 @@ class DataGenerator(Sequence):
         return [X1, X2], y
     
     
-def Masked_Mean_Absolute_Error(y_true, y_pred):
+def WRONG_Masked_Mean_Absolute_Error(y_true, y_pred):
     '''Masked mean absolut error custom loss function'''
     # create binary artifact maps from ground truth depth maps
     A_i = K.greater(y_true, 0)
@@ -150,6 +150,25 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
                         axis=(1,2,3)
                 )
            )
+    return loss
+
+
+def Masked_Mean_Absolute_Error(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    loss = K.sum(K.abs(y_true - y_pred) * A_i) / K.sum(A_i)
+    return loss
+
+
+def Masked_Root_Mean_Squared_Error(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(K.sum(K.square(y_true - y_pred) * A_i) / K.sum(A_i))
     return loss
 
 
