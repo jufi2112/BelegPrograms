@@ -275,6 +275,8 @@ if __name__ == "__main__":
     Parser.add_argument("--omit_batchnorm", default=False, action='store_true', help="Don't add batch normalization layers after convolutions.")
     Parser.add_argument("-m", "--momentum", type=float, default=0.99, help="Momentum used in batch normalization layers. Defaults to 0.99. If validation loss oscillates, try lowering it (e.g. to 0.6)")
     Parser.add_argument("--skip_0", type=str, default="add", help="Functionality of S0 skip connections. One of the following: 'add', 'concat', 'concat+' or 'disable'. Defaults to 'add'. 'Concat+' adds convolutions after concatenating.")
+    Parser.add_argument("--sgd_momentum", type=str, default=None, help="Only works when using SGD optimizer: Not specified/'None': no momentum, 'normal': momentum with value from --sgd_momentum_value, 'nesterov': Use nesterov momentum with value from --sgd_momentum_value.")
+    Parser.add_argument("--sgd_momentum_value", type=float, default=0.9, help="Only works when using SGD optimizer: Momentum value for SGD optimizer. Enable by using --sgd_momentum. Defaults to 0.9")
     args = Parser.parse_args()
     
     # training directory specified?
@@ -328,15 +330,30 @@ if __name__ == "__main__":
     optimizer = None
     if not args.default_optimizers:
         if args.optimizer.lower() == 'adam':
+            print("Using adam optimizer")
             optimizer = Adam(lr=0.001)
             schedule = StepDecay(initAlpha=0.001, factor=args.factor_decay, dropEvery=args.decay)
         
         elif args.optimizer.lower() == 'rmsprop':
+            print("Using RMSprop optimizer")
             optimizer = RMSprop(lr=0.001)
             schedule = StepDecay(initAlpha=0.001, factor=args.factor_decay, dropEvery=args.decay)
         
         elif args.optimizer.lower() == 'sgd':
-            optimizer = SGD(lr=0.01)
+            # check for momentum:
+            if args.sgd_momentum is None:
+                print("Using SGD optimizer without momentum")
+                optimizer = SGD(lr=0.01)
+            else:
+                if args.sgd_momentum.lower() == 'normal':
+                    print("Using normal SGD momentum = " + str(args.sgd_momentum_value))
+                    optimizer = SGD(lr=0.01, momentum=args.sgd_momentum_value, nesterov=False)
+                elif args.sgd_momentum.lower() == 'nesterov':
+                    print("Using nesterov SGD momentum = " + str(args.sgd_momentum_value))
+                    optimizer = SGD(lr=0.01, momentum=args.sgd_momentum_value, nesterov=True)
+                else:
+                    print("Unknown --sgd_momentum value. Defaulting to None")
+                    optimizer = SGD(lr=0.01)
             schedule = StepDecay(initAlpha=0.01, factor=args.factor_decay, dropEvery=args.decay)
 
         if optimizer is None:
