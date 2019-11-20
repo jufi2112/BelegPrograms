@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=1  # number of processor cores (i.e. threads)
 #SBATCH --partition=ml
 #SBATCH --mem-per-cpu=8000M   # memory per CPU core
-#SBATCH -J "Training_1"   # job name
+#SBATCH -J "Training_SGD_100_MMAE"   # job name
 #SBATCH --mail-user=julien.fischer@mailbox.tu-dresden.de   # email address
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH -A p_da_rgb
@@ -19,18 +19,21 @@
 export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 
 # The optimizer to utilize
-OPT=adam
+OPT=sgd
 
 # The number of epochs
 EPOCHS=100
 
-SAVE_FOLDER="results_training/""$OPT"_"$EPOCHS"
+# The loss function to utilize, either MMAE or MRMSE
+LOSS=MMAE
+
+SAVE_FOLDER="results_training/""$OPT"_"$EPOCHS"_"$LOSS"
 
 OUTFILE=$SAVE_FOLDER"/training_output.txt"
 
 mkdir -p $SAVE_FOLDER
 module load modenv/ml
 module load TensorFlow/1.14.0-PythonAnaconda-3.6
-python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model_VGG_Style.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -x /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/"$SAVE_FOLDER" -b 4 -e $EPOCHS -p 5 -o "$OPT" -d 10 -f 0.5 -m 0.6 --omit_batchnorm > "$OUTFILE"
+python /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/Model_VGG_Style.py -t /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/data -x /scratch/ws/fahe458b-p_da_rgb-depth_estimation_CNN/"$SAVE_FOLDER" -b 8 -e $EPOCHS -p 5 -o "$OPT" -d 10 -f 0.5 --loss "$LOSS" > "$OUTFILE"
 
 exit 0
