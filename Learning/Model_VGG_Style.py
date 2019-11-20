@@ -347,8 +347,10 @@ if __name__ == "__main__":
     loss_func = None
     loss = args.loss.lower()
     if loss == "mrmse":
+        print("Using masked-root-mean-squared-error loss function")
         loss_func = Masked_Root_Mean_Squared_Error
     elif loss == "mmae":
+        print("Using masked-mean-absolute-error loss function")
         loss_func = Masked_Mean_Absolute_Error
     else:
         print("Provided loss function is invalid. Defaulting to MMAE")
