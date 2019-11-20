@@ -135,7 +135,7 @@ class DataGenerator(Sequence):
     
     
 def WRONG_Masked_Mean_Absolute_Error(y_true, y_pred):
-    '''Masked mean absolut error custom loss function'''
+    '''Wrong version of masked mean absolut error custom loss function'''
     # create binary artifact maps from ground truth depth maps
     A_i = K.greater(y_true, 0)
     A_i = K.cast(A_i, dtype='float32')
@@ -158,7 +158,14 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
     # create binary artifact maps from ground truth depth maps
     A_i = K.greater(y_true, 0)
     A_i = K.cast(A_i, dtype='float32')
-    loss = K.sum(K.abs(y_true - y_pred) * A_i) / K.sum(A_i)
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            )
     return loss
 
 
@@ -168,7 +175,16 @@ def Masked_Root_Mean_Squared_Error(y_true, y_pred):
     A_i = K.greater(y_true, 0)
     A_i = K.cast(A_i, dtype='float32')
     # original K.sqrt(K.mean(K.square(y_true - y_pred)))
-    loss = K.sqrt(K.sum(K.square(y_true - y_pred) * A_i) / K.sum(A_i))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            )
     return loss
 
 
@@ -296,6 +312,7 @@ if __name__ == "__main__":
     Parser.add_argument("--skip_0", type=str, default="add", help="Functionality of S0 skip connections. One of the following: 'add', 'concat', 'concat+' or 'disable'. Defaults to 'add'. 'Concat+' adds convolutions after concatenating.")
     Parser.add_argument("--sgd_momentum", type=str, default=None, help="Only works when using SGD optimizer: Not specified/'None': no momentum, 'normal': momentum with value from --sgd_momentum_value, 'nesterov': Use nesterov momentum with value from --sgd_momentum_value.")
     Parser.add_argument("--sgd_momentum_value", type=float, default=0.9, help="Only works when using SGD optimizer: Momentum value for SGD optimizer. Enable by using --sgd_momentum. Defaults to 0.9")
+    Parser.add_argument("-l", "--loss", type=str, default="MMAE", help="Loss function to utilize. Either MMAE or MRMSE. Defaults to MMAE")
     args = Parser.parse_args()
     
     # training directory specified?
@@ -325,6 +342,17 @@ if __name__ == "__main__":
         print("No output directory specified!")
         print("For help use --help")
         exit()
+        
+        
+    loss_func = None
+    loss = args.loss.lower()
+    if loss == "mrmse":
+        loss_func = Masked_Root_Mean_Squared_Error
+    elif loss == "mmae":
+        loss_func = Masked_Mean_Absolute_Error
+    else:
+        print("Provided loss function is invalid. Defaulting to MMAE")
+        loss_func = Masked_Mean_Absolute_Error
         
     # skip connection 0 arguments
     s0_arg = args.skip_0.lower()
@@ -517,8 +545,8 @@ if __name__ == "__main__":
 
     model.compile(
             optimizer=optimizer,
-            loss=Masked_Mean_Absolute_Error,
-            metrics=['mae', 'mse', Masked_Mean_Absolute_Error, "accuracy", berHu(0.2)])
+            loss=loss_func,
+            metrics=['mae', 'mse', Masked_Mean_Absolute_Error, Masked_Root_Mean_Squared_Error, "accuracy", berHu(0.2)])
     
     hist = model.fit_generator(
            generator=training_generator,
