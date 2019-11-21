@@ -73,6 +73,19 @@ def Masked_Root_Mean_Squared_Error(y_true, y_pred):
             )
     return loss
 
+def berHu(c):
+    '''Reverse Huber loss as stated in paper "Deeper Depth Prediction with Fully Convolutional Residual Networks" by Laina et al. and "The berhu
+       penalty and the grouped effect" by L. Zwald and S. Lambert-Lacroix'''
+    # does this current implementation makes sense? --> yes, it returns mae or mse
+    # TODO implement this with binary mask too?
+    def inverse_huber(y_true, y_pred):
+        threshold = c * K.max(K.abs(y_true - y_pred))
+        absolute_mean = K.mean(K.abs(y_true - y_pred))
+        mask = K.less_equal(absolute_mean, threshold)
+        mask = K.cast(mask, dtype='float32')
+        return mask * absolute_mean + (1-mask) * K.mean(K.square(K.abs(y_true - y_pred)))
+    return inverse_huber
+
 # The Predictor Class itself
 class DepthPredictor:
     def __init__(self, path_to_model, model_uses_custom_loss, old_model):
@@ -91,7 +104,7 @@ class DepthPredictor:
                     loss_name="Binary_Mean_Absolut_Error"
                 else:
                     loss_name="Masked_Mean_Absolute_Error"
-                return load_model(path, custom_objects={loss_name: Masked_Mean_Absolut_Error})
+                return load_model(path, custom_objects={loss_name: Masked_Mean_Absolute_Error, 'inverse_huber':berHu(0.2)})
             else:
                 return load_model(path)
         else:
@@ -293,11 +306,11 @@ class DepthPredictor:
         n = []
         for i in range(0,images.shape[0]):
             if utilize_normalize[i]:
-                buffer = cv2.normalize(img, None, 0, 65535, cv2.NORM_MINMAX)
+                buffer = cv2.normalize(images[i], None, 0, 65535, cv2.NORM_MINMAX)
                 buffer = (buffer/256).astype(np.uint8)
                 n.append(buffer)
             else:
-                buffer = (img/256).astype(np.uint8)
+                buffer = (images[i]/256).astype(np.uint8)
                 buffer = cv2.equalizeHist(buffer)
                 n.append(buffer)                           
         return np.asarray(n, dtype=np.uint8).reshape(-1, 480, 640)
