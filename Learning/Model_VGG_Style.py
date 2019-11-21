@@ -439,13 +439,13 @@ if __name__ == "__main__":
     current_log_name = 'log_' + current_date
     log_path = os.path.join(log_dir, current_log_name)
 
-    checkpoint_callback = ModelCheckpoint(
-            filepath=checkpoint_path,
-            verbose=1,
-            save_best_only=False,
-            save_weights_only=False,
-            mode='auto',
-            period=args.periods)
+    #checkpoint_callback = ModelCheckpoint(
+    #        filepath=checkpoint_path,
+    #        verbose=1,
+    #        save_best_only=False,
+    #        save_weights_only=False,
+    #        mode='auto',
+    #        period=args.periods)
 
     tensorboard_callback = TensorBoard(
             log_dir=log_path,
@@ -456,7 +456,8 @@ if __name__ == "__main__":
             write_images=True,
             update_freq="epoch")
 
-    callback_list = [checkpoint_callback, tensorboard_callback]
+    #callback_list = [checkpoint_callback, tensorboard_callback]
+    callback_list = [tensorboard_callback]
     if schedule is not None:
         callback_list.append(LearningRateScheduler(schedule))
     
