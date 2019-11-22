@@ -505,7 +505,25 @@ class DepthPredictor:
             plt.close('all')
             self.image_write_counter += 1
         
-
+    
+    def __calc_differences(self, ground_truth, predictions, threshold_meters, depth_scale):
+        '''Visualizes the differences between ground truth and predictions based on the provided threshold'''
+        n = []
+        if depth_scale == -1.0:
+            return np.asarray(n, dtype=np.uint8)
+        artifacts = np.equal(ground_truth, 0)
+        for i in range(0, ground_truth.shape[0]):
+            diff = np.abs(ground_truth[i] - predictions[i])
+            threshold_pixel_domain = threshold_meters / depth_scale
+            mask = np.less_equal(diff, threshold_pixel_domain)
+            col = np.zeros((480,640,3), dtype=np.uint8)
+            col[mask==0] = (0,0,255)
+            col[mask==1] = (0,255,0)
+            col[artifacts==1] = (0,0,0)
+            n.append(buffer)
+            
+        return np.asarray(n, dtype=np.uint8)
+    
     def __write_cumulative_histograms(self, histogram_infrared, histogram_ground_truth_depth, histogram_predicted, histogram_predicted_raw, output_dir):
         '''Creates graphs of the given histogram arrays and writes them on disk'''
         fig, axs = plt.subplots(2,1, sharex=True)
@@ -601,8 +619,10 @@ if __name__ == '__main__':
     #Parser.add_argument("--no_processing", default=False, action='store_true', help="Predicted depth image's range is not clipped to 16 bit. Can result in strange behavior.")
     Parser.add_argument("--old_model", default=False, action='store_true', help="For old models, the loss function was called binary mean absolut error. Activate this if an 'Unknown loss function' error is thrown.")
     #Parser.add_argument("--force_histogram", default=False, action='store_true', help="When normalizing depth images, force histogram equalization even if ground truth depth is available")
+    Parser.add_argument("-d", "--difference_threshold", type=float, default=0.05, help="Utilized for difference visualization of ground truth and prediction. Maximum difference between ground truth and prediction in meters which is considered ok. Defaults to 0.05")
+    Parser.add_argument("--depth_scale_text", type=str, default=None, help="Text file containing depth scale of the utilized depth camera. Alternatively, use --depth_scale_value to directly provide a float")
+    Parser.add_argument("--depth_scale_value", type=float, default=-1.0, help="Depth scale of the utilized depth camera. Alternatively, provide text file containing this scale with --depth_scale_text")
     # TODO implement force_histogram option
-    # TODO implement histogram visualization
 
     args = Parser.parse_args()
     
@@ -621,6 +641,21 @@ if __name__ == '__main__':
         print("No output path specified.")
         print("For help use --help")
         exit()
+        
+    depth_scale = -1.0
+    if args.depth_scale_text is None:
+        # utilize direct value
+        depth_scale = args.depth_scale_value
+    else:1
+        if os.path.isfile(args.depth_scale_text):
+            with open(args.depth_scale_text, 'r') as file:
+                depth_scale = float(file.readline())
+                
+    # check if something went wrong
+    if depth_scale == -1.0:
+        print('Unable to infer correct camera depth scale. Please specify a readable text file containing the scale or directly provide the depth scale')
+        print('Will not visualize differences between ground truth and predictions')
+        print('For help, utilize --help')
         
     time_start = cv2.getTickCount()  
     
