@@ -166,7 +166,12 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
                 /
                 K.sum(A_i, axis=(1,2,3))
             )
-    return loss
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
 
 
 def Masked_Root_Mean_Squared_Error(y_true, y_pred):
@@ -185,7 +190,12 @@ def Masked_Root_Mean_Squared_Error(y_true, y_pred):
                     K.sum(A_i, axis=(1,2,3))
                   )
             )
-    return loss
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
 
 
 def berHu(c):

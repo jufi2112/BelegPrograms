@@ -52,7 +52,12 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
                 /
                 K.sum(A_i, axis=(1,2,3))
             )
-    return loss
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
 
 
 def Masked_Root_Mean_Squared_Error(y_true, y_pred):
@@ -71,7 +76,13 @@ def Masked_Root_Mean_Squared_Error(y_true, y_pred):
                     K.sum(A_i, axis=(1,2,3))
                   )
             )
-    return loss
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
+
 
 def berHu(c):
     '''Reverse Huber loss as stated in paper "Deeper Depth Prediction with Fully Convolutional Residual Networks" by Laina et al. and "The berhu
@@ -129,17 +140,16 @@ class DepthPredictor:
         return np.asarray(n, dtype=np.float32)       
         
     
-    def __predict(self, color, infrared, process=True):
+    def __predict(self, color, infrared):
         '''Predicts depth for the given color and infrared input. If process is true, clips and casts the prediction.'''
         color = color.reshape(-1, 480,640,3)
         infrared = infrared.reshape(-1, 480,640,1)
         predictions = self.model.predict([color, infrared])
-        if process:
-            predictions_proc = np.clip(predictions, 0, 65535).astype(np.uint16)
+        predictions_proc = np.clip(predictions, 0, 65535).astype(np.uint16)
         return predictions_proc, predictions            
     
     
-    def PredictSingleImage(self, output_dir, input_color, input_infrared, input_depth=None, scale_images=True, threshold_offset=2000, process_prediction=True):
+    def PredictSingleImage(self, output_dir, input_color, input_infrared, input_depth=None, scale_images=True, threshold_offset=2000):
         '''Predicts a single depth image from given color and infrared input. Ground truth depth map is optional.'''
         self.image_write_counter = 1
         color = cv2.imread(input_color, cv2.IMREAD_COLOR)
@@ -156,7 +166,7 @@ class DepthPredictor:
             infrared = (infrared/65535.).astype(np.float32)
             
         # The prediction itself
-        prediction, predictions_raw = self.__predict(color, infrared, process_prediction)
+        prediction, predictions_raw = self.__predict(color, infrared)
             
         threshold = -1
         # if ground truth available, utilize this ground truth to calculate threshold --> we can use normalization
@@ -200,6 +210,7 @@ class DepthPredictor:
         self.__write_images(
                 summaries=summary,
                 depth=depth_not_normalized,
+                predictions_unprocessed=prediction,
                 histograms_infrared=hist_infrared,
                 histograms_ground_truth_depth=hist_depth_ground_truth,
                 histograms_predicted=hist_depth_predicted,
@@ -210,7 +221,7 @@ class DepthPredictor:
         return
     
     
-    def PredictImagesBatchWise(self, path_to_images, output_dir, batch_size, scale_images=True, threshold_offset=2000, process_prediction=True):
+    def PredictImagesBatchWise(self, path_to_images, output_dir, batch_size, scale_images=True, threshold_offset=2000):
         '''Because the previous methods consume a large amount of memory, this function implements those functions batch wise'''
         self.image_write_counter = 1
         path_color = os.path.join(path_to_images, 'Color')
@@ -234,7 +245,7 @@ class DepthPredictor:
             # load images
             color, color_original, infrared, infrared_original, depth = self.__load_images_batch(path_color=path_color, path_infrared=path_infrared, path_depth=path_depth, batch=current_batch, scale_images=scale_images)
             # predict images
-            predictions, predictions_raw = self.__predict(color, infrared, process_prediction)
+            predictions, predictions_raw = self.__predict(color, infrared)
             # create map that shows us which ground truth depth images are available
             sums = np.sum(depth, axis=(1,2,3))
             is_valid_depth = np.greater(sums, 0)
@@ -283,6 +294,7 @@ class DepthPredictor:
             self.__write_images(
                     summaries=summary,
                     depth=depth_not_normalized,
+                    predictions_unprocessed=predictions,
                     histograms_infrared=hist_infrared,
                     histograms_ground_truth_depth=hist_depth_ground_truth,
                     histograms_predicted=hist_depth_predicted,
@@ -362,12 +374,14 @@ class DepthPredictor:
         return np.asarray(n, dtype=np.uint16)
                 
                 
-    def __write_images(self, summaries, depth, histograms_infrared, histograms_ground_truth_depth, histograms_predicted, histograms_predicted_raw, output_dir):
+    def __write_images(self, summaries, depth, predictions_unprocessed, histograms_infrared, histograms_ground_truth_depth, histograms_predicted, histograms_predicted_raw, output_dir):
         if not os.path.isdir(output_dir):
             os.makedirs(output_dir)
         for i in range(0, summaries.shape[0]):
             filename_summary = str(self.image_write_counter) + '_summary.jpg'
             cv2.imwrite(os.path.join(output_dir, filename_summary), summaries[i])
+            filename_prediction = str(self.image_write_counter) + '_predicted_depth.png'
+            cv2.imwrite(os.path.join(output_dir, filename_prediction), predictions_unprocessed[i])
             
             if depth is not None:
                 filename_depth = str(self.image_write_counter) + '_depth_not_normalized.png'
@@ -558,7 +572,7 @@ if __name__ == '__main__':
     #Parser.add_argument("--swap_artifacts", default=False, action='store_true', help="Swap artifacts in predicted depth images from 65535 to 0")
     #Parser.add_argument("-p", "--prefix", type=str, default=None, help="Prefix for the image save filename")
     Parser.add_argument("-t", "--threshold_offset", type=int, default=2000, help="Offset for depth image normalization. Defaults to 2000. Only utilized if ground truth is given.")
-    Parser.add_argument("--no_processing", default=False, action='store_true', help="Predicted depth image's range is not clipped to 16 bit. Can result in strange behavior.")
+    #Parser.add_argument("--no_processing", default=False, action='store_true', help="Predicted depth image's range is not clipped to 16 bit. Can result in strange behavior.")
     Parser.add_argument("--old_model", default=False, action='store_true', help="For old models, the loss function was called binary mean absolut error. Activate this if an 'Unknown loss function' error is thrown.")
     #Parser.add_argument("--force_histogram", default=False, action='store_true', help="When normalizing depth images, force histogram equalization even if ground truth depth is available")
     # TODO implement force_histogram option
@@ -596,17 +610,14 @@ if __name__ == '__main__':
                 input_infrared=args.infrared,
                 input_depth=args.ground_truth,
                 scale_images=not args.no_scaling,
-                threshold_offset=args.threshold_offset,
-                process_prediction=not args.no_processing
-                )
+                threshold_offset=args.threshold_offset)
     else:
         dp.PredictImagesBatchWise(
                 path_to_images=args.folder,
                 output_dir=args.output,
                 batch_size=args.batch_size,
                 scale_images=not args.no_scaling,
-                threshold_offset=args.threshold_offset,
-                process_prediction=not args.no_processing)
+                threshold_offset=args.threshold_offset)
     
     
     
