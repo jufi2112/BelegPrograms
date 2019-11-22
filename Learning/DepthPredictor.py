@@ -295,7 +295,8 @@ class DepthPredictor:
                 histogram_infrared=cumulative_histogram_infrared,
                 histogram_ground_truth_depth=cumulative_histogram_depth,
                 histogram_predicted=cumulative_histogram_predictions_processed,
-                histogram_predicted_raw=cumulative_histogram_predictions_raw)
+                histogram_predicted_raw=cumulative_histogram_predictions_raw,
+                output_dir=output_dir)
         print('Successfully predicted and saved!')
         return
     
