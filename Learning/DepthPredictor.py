@@ -132,12 +132,17 @@ class DepthPredictor:
     def __calc_histograms(self, images, cumulative_histogram):
         '''Creates histograms for the given images. Also adds each histogram to the given histogram (used for cumulative histogram)''' 
         n = []
+        m = []
         for i in range(0,images.shape[0]):
             hist = cv2.calcHist([images[i].reshape(480,640)], [0], None, [65536], [0,65535])
+            if images.dtype == np.float32:
+                # predictions_raw
+                hist_2 = cv2.calcHist([images[i].reshape(480,640)], [0], None, [65536], [np.amin(images[i]), np.amax(images[i])])
+                m.append(hist_2)
             if cumulative_histogram is not None:
                 cumulative_histogram += hist
             n.append(hist)
-        return np.asarray(n, dtype=np.float32)       
+        return np.asarray(n, dtype=np.float32), m
         
     
     def __predict(self, color, infrared):
@@ -200,12 +205,12 @@ class DepthPredictor:
                     ground_truth_depth=depth)
         
         # calculate histograms
-        hist_infrared = self.__calc_histograms(infrared_original.reshape(1, 480, 640, 1), None)
+        hist_infrared = self.__calc_histograms(infrared_original.reshape(1, 480, 640, 1), None)[0]
         hist_depth_ground_truth = None
         if depth is not None:
-            hist_depth_ground_truth = self.__calc_histograms(depth.reshape(1,480,640,1), None)
-        hist_depth_predicted = self.__calc_histograms(prediction.reshape(1, 480, 640, 1), None)
-        hist_depth_predicted_raw = self.__calc_histograms(predictions_raw.reshape(1,480,640,1), None)
+            hist_depth_ground_truth = self.__calc_histograms(depth.reshape(1,480,640,1), None)[0]
+        hist_depth_predicted = self.__calc_histograms(prediction.reshape(1, 480, 640, 1), None)[0]
+        hist_depth_predicted_raw, hist_depth_predicted_raw_float = self.__calc_histograms(predictions_raw.reshape(1,480,640,1), None)
         
         self.__write_images(
                 summaries=summary,
@@ -215,6 +220,7 @@ class DepthPredictor:
                 histograms_ground_truth_depth=hist_depth_ground_truth,
                 histograms_predicted=hist_depth_predicted,
                 histograms_predicted_raw=hist_depth_predicted_raw,
+                histograms_predicted_raw_float=hist_depth_predicted_raw_float,
                 output_dir=output_dir)        
         
         print('Successfully predicted and saved!')
@@ -285,10 +291,10 @@ class DepthPredictor:
                     predicted_depth=predictions.reshape(-1, 480, 640),
                     ground_truth_depth=depth.reshape(-1, 480, 640))
             
-            hist_infrared = self.__calc_histograms(infrared_original.reshape(-1, 480, 640, 1), cumulative_histogram_infrared)
-            hist_depth_ground_truth = self.__calc_histograms(depth.reshape(-1, 480, 640, 1), cumulative_histogram_depth)
-            hist_depth_predicted = self.__calc_histograms(predictions.reshape(-1, 480 ,640, 1), cumulative_histogram_predictions_processed)
-            hist_depth_predicted_raw = self.__calc_histograms(predictions_raw.reshape(-1, 480, 640, 1), cumulative_histogram_predictions_raw)
+            hist_infrared = self.__calc_histograms(infrared_original.reshape(-1, 480, 640, 1), cumulative_histogram_infrared)[0]
+            hist_depth_ground_truth = self.__calc_histograms(depth.reshape(-1, 480, 640, 1), cumulative_histogram_depth)[0]
+            hist_depth_predicted = self.__calc_histograms(predictions.reshape(-1, 480 ,640, 1), cumulative_histogram_predictions_processed)[0]
+            hist_depth_predicted_raw, hist_depth_predicted_raw_float = self.__calc_histograms(predictions_raw.reshape(-1, 480, 640, 1), cumulative_histogram_predictions_raw)
             
             
             self.__write_images(
@@ -299,6 +305,7 @@ class DepthPredictor:
                     histograms_ground_truth_depth=hist_depth_ground_truth,
                     histograms_predicted=hist_depth_predicted,
                     histograms_predicted_raw=hist_depth_predicted_raw,
+                    histograms_predicted_raw_float=hist_depth_predicted_raw_float,
                     output_dir=output_dir)
                     
             batch_counter += 1
@@ -374,7 +381,7 @@ class DepthPredictor:
         return np.asarray(n, dtype=np.uint16)
                 
                 
-    def __write_images(self, summaries, depth, predictions_unprocessed, histograms_infrared, histograms_ground_truth_depth, histograms_predicted, histograms_predicted_raw, output_dir):
+    def __write_images(self, summaries, depth, predictions_unprocessed, histograms_infrared, histograms_ground_truth_depth, histograms_predicted, histograms_predicted_raw, histograms_predicted_raw_float, output_dir):
         if not os.path.isdir(output_dir):
             os.makedirs(output_dir)
         for i in range(0, summaries.shape[0]):
@@ -388,6 +395,7 @@ class DepthPredictor:
                 cv2.imwrite(os.path.join(output_dir, filename_depth), depth[i])
                 
             # create histograms
+            # Infrared solo
             fig, axs = plt.subplots(2,1, sharex=True)
             axs[0].plot(histograms_infrared[i])
             axs[0].set_title('Linear Infrared')
@@ -403,6 +411,7 @@ class DepthPredictor:
             plt.savefig(os.path.join(output_dir,str(self.image_write_counter) + '_histograms_infrared.png'))
             
             if histograms_ground_truth_depth is not None:
+                # grount truth vs processed predicted
                 fig, axs = plt.subplots(2,2, sharex=True)
                 axs[0,0].plot(histograms_ground_truth_depth[i])
                 axs[0,0].set_title('Linear Ground Truth')
@@ -423,6 +432,7 @@ class DepthPredictor:
                 plt.tight_layout()
                 plt.savefig(os.path.join(output_dir,str(self.image_write_counter) + '_histograms_ground_truth_predicted_processed.png'))
             
+                # ground truth vs raw predicted
                 fig, axs = plt.subplots(2,2, sharex=True)
                 axs[0,0].plot(histograms_ground_truth_depth[i])
                 axs[0,0].set_title('Linear Ground Truth')
@@ -443,6 +453,7 @@ class DepthPredictor:
                 plt.tight_layout()
                 plt.savefig(os.path.join(output_dir,str(self.image_write_counter) + '_histograms_ground_truth_predicted_raw.png'))
                 
+                # ground truth solo
                 fig, axs = plt.subplots(2,1 , sharex=True)
                 axs[0].plot(histograms_ground_truth_depth[i])
                 axs[0].set_title('Linear Ground Truth')
@@ -457,6 +468,7 @@ class DepthPredictor:
                 plt.tight_layout()
                 plt.savefig(os.path.join(output_dir,str(self.image_write_counter) + '_histograms_ground_truth.png'))
             
+            # predicted processed vs raw
             fig, axs = plt.subplots(2,2, sharex=True)
             axs[0,0].plot(histograms_predicted[i])
             axs[0,0].set_title('Linear Processed Predicted')
@@ -476,6 +488,20 @@ class DepthPredictor:
                 #ax.label_outer()
             plt.tight_layout()
             plt.savefig(os.path.join(output_dir,str(self.image_write_counter) + '_histograms_predicted_processed_predicted_raw.png'))
+            
+            # predicted raw float solo
+            fix, axs = plt.subplots(2,1, sharex=True)
+            axs[0].plot(histograms_predicted_raw_float[i])
+            axs[0].set_title('Linear Raw Predicted No Clipping')
+            axs[0].set_yscale('linear')
+            axs[1].plot(histograms_predicted_raw_float[i])
+            axs[1].set_title('Log Raw Predicted No Clipping')
+            axs[1].set_yscale('log')
+            for ax in axs.flat:
+                ax.set(xlabel='Values', ylabel='Occurences')
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_dir, str(self.image_write_counter) + '_histogram_predicted_raw_no_clipping.png'))
+            
             plt.close('all')
             self.image_write_counter += 1
         
