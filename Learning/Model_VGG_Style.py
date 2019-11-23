@@ -549,7 +549,7 @@ if __name__ == "__main__":
     elif s0_arg == 'concat' or s0_arg == 'concat+':
         z = vgg.Residual_Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum, skip_integration_mode='concat')(z, skip_zero)
         if s0_arg == 'concat+':
-            z = vgg.Block(number_of_layers=1, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
+            z = vgg.Block(number_of_layers=2, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # output layer
     z = Conv2D(1, kernel_size=(3,3), padding="same", name="Conv_Output")(z)
