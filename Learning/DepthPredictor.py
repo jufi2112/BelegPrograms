@@ -115,7 +115,7 @@ class DepthPredictor:
                     loss_name="Binary_Mean_Absolut_Error"
                 else:
                     loss_name="Masked_Mean_Absolute_Error"
-                return load_model(path, custom_objects={loss_name: Masked_Mean_Absolute_Error, 'inverse_huber':berHu(0.2)})
+                return load_model(path, custom_objects={loss_name: Masked_Mean_Absolute_Error, 'inverse_huber':berHu(0.2), 'Masked_Root_Mean_Squared_Error':Masked_Root_Mean_Squared_Error})
             else:
                 return load_model(path)
         else:
@@ -137,7 +137,7 @@ class DepthPredictor:
             hist = cv2.calcHist([images[i].reshape(480,640)], [0], None, [65536], [0,65535])
             if images.dtype == np.float32:
                 # predictions_raw
-                hist_2 = cv2.calcHist([images[i].reshape(480,640)], [0], None, [65536], [np.amin(images[i]), np.amax(images[i])])
+                hist_2 = cv2.calcHist([images[i].reshape(480,640)], [0], None, [65536], [int(np.amin(images[i])), int(np.amax(images[i]))])
                 m.append(hist_2)
             if cumulative_histogram is not None:
                 cumulative_histogram += hist
@@ -154,7 +154,7 @@ class DepthPredictor:
         return predictions_proc, predictions            
     
     
-    def PredictSingleImage(self, output_dir, input_color, input_infrared, input_depth=None, scale_images=True, threshold_offset=2000):
+    def PredictSingleImage(self, output_dir, input_color, input_infrared, input_depth=None, scale_images=True, threshold_offset=2000, differences_threshold=0.05, depth_scale=-1.0):
         '''Predicts a single depth image from given color and infrared input. Ground truth depth map is optional.'''
         self.image_write_counter = 1
         color = cv2.imread(input_color, cv2.IMREAD_COLOR)
@@ -212,6 +212,14 @@ class DepthPredictor:
         hist_depth_predicted = self.__calc_histograms(prediction.reshape(1, 480, 640, 1), None)[0]
         hist_depth_predicted_raw, hist_depth_predicted_raw_float = self.__calc_histograms(predictions_raw.reshape(1,480,640,1), None)
         
+        differences = None
+        if depth is not None:
+            differences = self.__calc_differences(
+                    ground_truth=depth,
+                    predictions=prediction.reshape(1,480,640),
+                    threshold_meters=differences_threshold,
+                    depth_scale=depth_scale)
+        
         self.__write_images(
                 summaries=summary,
                 depth=depth_not_normalized,
@@ -221,13 +229,14 @@ class DepthPredictor:
                 histograms_predicted=hist_depth_predicted,
                 histograms_predicted_raw=hist_depth_predicted_raw,
                 histograms_predicted_raw_float=hist_depth_predicted_raw_float,
+                differences=differences,
                 output_dir=output_dir)        
         
         print('Successfully predicted and saved!')
         return
     
     
-    def PredictImagesBatchWise(self, path_to_images, output_dir, batch_size, scale_images=True, threshold_offset=2000):
+    def PredictImagesBatchWise(self, path_to_images, output_dir, batch_size, scale_images=True, threshold_offset=2000, differences_threshold=0.05, depth_scale=-1.0):
         '''Because the previous methods consume a large amount of memory, this function implements those functions batch wise'''
         self.image_write_counter = 1
         path_color = os.path.join(path_to_images, 'Color')
@@ -296,6 +305,11 @@ class DepthPredictor:
             hist_depth_predicted = self.__calc_histograms(predictions.reshape(-1, 480 ,640, 1), cumulative_histogram_predictions_processed)[0]
             hist_depth_predicted_raw, hist_depth_predicted_raw_float = self.__calc_histograms(predictions_raw.reshape(-1, 480, 640, 1), cumulative_histogram_predictions_raw)
             
+            differences = self.__calc_differences(
+                    ground_truth=depth.reshape(-1, 480, 640),
+                    predictions=predictions.reshape(-1, 480, 640),
+                    threshold_meters=differences_threshold,
+                    depth_scale=depth_scale)
             
             self.__write_images(
                     summaries=summary,
@@ -306,6 +320,7 @@ class DepthPredictor:
                     histograms_predicted=hist_depth_predicted,
                     histograms_predicted_raw=hist_depth_predicted_raw,
                     histograms_predicted_raw_float=hist_depth_predicted_raw_float,
+                    differences=differences,
                     output_dir=output_dir)
                     
             batch_counter += 1
@@ -381,7 +396,7 @@ class DepthPredictor:
         return np.asarray(n, dtype=np.uint16)
                 
                 
-    def __write_images(self, summaries, depth, predictions_unprocessed, histograms_infrared, histograms_ground_truth_depth, histograms_predicted, histograms_predicted_raw, histograms_predicted_raw_float, output_dir):
+    def __write_images(self, summaries, depth, predictions_unprocessed, histograms_infrared, histograms_ground_truth_depth, histograms_predicted, histograms_predicted_raw, histograms_predicted_raw_float, differences, output_dir):
         if not os.path.isdir(output_dir):
             os.makedirs(output_dir)
         for i in range(0, summaries.shape[0]):
@@ -393,7 +408,9 @@ class DepthPredictor:
             if depth is not None:
                 filename_depth = str(self.image_write_counter) + '_depth_not_normalized.png'
                 cv2.imwrite(os.path.join(output_dir, filename_depth), depth[i])
-                
+            if differences is not None:
+                filename_differences = str(self.image_write_counter) + '_differences.jpg'
+                cv2.imwrite(os.path.join(output_dir, filename_differences), differences[i])
             # create histograms
             # Infrared solo
             fig, axs = plt.subplots(2,1, sharex=True)
@@ -503,6 +520,7 @@ class DepthPredictor:
             plt.savefig(os.path.join(output_dir, str(self.image_write_counter) + '_histogram_predicted_raw_no_clipping.png'))
             
             plt.close('all')
+                
             self.image_write_counter += 1
         
     
@@ -519,8 +537,8 @@ class DepthPredictor:
             col = np.zeros((480,640,3), dtype=np.uint8)
             col[mask==0] = (0,0,255)
             col[mask==1] = (0,255,0)
-            col[artifacts==1] = (0,0,0)
-            n.append(buffer)
+            col[artifacts[i]==1] = (0,0,0)
+            n.append(col)
             
         return np.asarray(n, dtype=np.uint8)
     
@@ -646,7 +664,7 @@ if __name__ == '__main__':
     if args.depth_scale_text is None:
         # utilize direct value
         depth_scale = args.depth_scale_value
-    else:1
+    else:
         if os.path.isfile(args.depth_scale_text):
             with open(args.depth_scale_text, 'r') as file:
                 depth_scale = float(file.readline())
@@ -671,14 +689,18 @@ if __name__ == '__main__':
                 input_infrared=args.infrared,
                 input_depth=args.ground_truth,
                 scale_images=not args.no_scaling,
-                threshold_offset=args.threshold_offset)
+                threshold_offset=args.threshold_offset,
+                differences_threshold=args.difference_threshold,
+                depth_scale=depth_scale)
     else:
         dp.PredictImagesBatchWise(
                 path_to_images=args.folder,
                 output_dir=args.output,
                 batch_size=args.batch_size,
                 scale_images=not args.no_scaling,
-                threshold_offset=args.threshold_offset)
+                threshold_offset=args.threshold_offset,
+                differences_threshold=args.difference_threshold, 
+                depth_scale=depth_scale)
     
     
     
