@@ -173,6 +173,21 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
     interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
     return loss+interval_loss
 
+def Masked_Mean_Absolute_Error_Simple(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            ) 
+    return loss
+
 
 def Masked_Root_Mean_Squared_Error(y_true, y_pred):
     '''Masked root mean squared error custom loss function'''
@@ -322,7 +337,7 @@ if __name__ == "__main__":
     Parser.add_argument("--skip_0", type=str, default="add", help="Functionality of S0 skip connections. One of the following: 'add', 'concat', 'concat+' or 'disable'. Defaults to 'add'. 'Concat+' adds convolutions after concatenating.")
     Parser.add_argument("--sgd_momentum", type=str, default=None, help="Only works when using SGD optimizer: Not specified/'None': no momentum, 'normal': momentum with value from --sgd_momentum_value, 'nesterov': Use nesterov momentum with value from --sgd_momentum_value.")
     Parser.add_argument("--sgd_momentum_value", type=float, default=0.9, help="Only works when using SGD optimizer: Momentum value for SGD optimizer. Enable by using --sgd_momentum. Defaults to 0.9")
-    Parser.add_argument("-l", "--loss", type=str, default="MMAE", help="Loss function to utilize. Either MMAE or MRMSE. Defaults to MMAE")
+    Parser.add_argument("-l", "--loss", type=str, default="MMAE_simple", help="Loss function to utilize. Either MMAE MMAE_simple or MRMSE. Defaults to MMAE_simple")
     args = Parser.parse_args()
     
     # training directory specified?
@@ -362,6 +377,9 @@ if __name__ == "__main__":
     elif loss == "mmae":
         print("Using masked-mean-absolute-error loss function")
         loss_func = Masked_Mean_Absolute_Error
+    elif loss == 'mmae_simple':
+        print("Using simple masked-mean-absolute-error loss function")
+        loss_func = Masked_Mean_Absolute_Error_Simple
     else:
         print("Provided loss function is invalid. Defaulting to MMAE")
         loss_func = Masked_Mean_Absolute_Error
