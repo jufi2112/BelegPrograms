@@ -61,12 +61,13 @@ class StepDecay(LearningRateDecay):
 
 class DataGenerator(Sequence):
     '''Assumes that examples in the provided folder are named from 1 to n, with n being the number of images'''
-    def __init__(self, path_to_data_set='data/train', batch_size=32, image_size=(480,640), shuffle=True, scale_images=False):
+    def __init__(self, path_to_data_set='data/train', batch_size=32, image_size=(480,640), shuffle=True, scale_images=False, scale_ground_truth=False):
         self.path_to_data = path_to_data_set
         self.batch_size = batch_size
         self.image_size = image_size
         self.shuffle = shuffle
         self.scale_images = scale_images
+        self.scale_ground_truth = scale_ground_truth
         self.training_size = self.__get_training_data_size(self.path_to_data)
         self.on_epoch_end()
         
@@ -102,7 +103,10 @@ class DataGenerator(Sequence):
         else:
             X1 = np.empty((self.batch_size, *self.image_size, 3), dtype=np.float32) # color images
             X2 = np.empty((self.batch_size, *self.image_size), dtype=np.float32) # ir image
-        y = np.empty((self.batch_size, *self.image_size), dtype=np.uint16)  # depth image
+        if self.scale_ground_truth:
+            y = np.empty((self.batch_size, *self.image_size), dtype=np.float32)
+        else:
+            y = np.empty((self.batch_size, *self.image_size), dtype=np.uint16)  # depth image
         # Generate data
         for idx, name in enumerate(list_images):
             # load images in arrays
@@ -118,7 +122,9 @@ class DataGenerator(Sequence):
             else:
                 X2[idx,] = (img/65535.).astype(np.float32)
             img = cv2.imread(os.path.join(self.path_to_data, 'Depth', str(name)+".png"), cv2.IMREAD_ANYDEPTH)
-            y[idx,] = img.astype(np.uint16)
+            if self.scale_ground_truth:
+                img = (img/65535.).astype(np.float32)
+            y[idx,] = img
         # reshape ir and depth images
         X2 = X2.reshape(self.batch_size, 480, 640, 1)
         y = y.reshape(self.batch_size, 480, 640, 1)  
@@ -173,11 +179,53 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
     interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
     return loss+interval_loss
 
+
+def Masked_Mean_Absolute_Error_Sigmoid(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            )
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
+
+
 def Masked_Mean_Absolute_Error_Simple(y_true, y_pred):
     '''Masked mean absolut error custom loss function'''
     # create binary artifact maps from ground truth depth maps
     A_i = K.greater(y_true, 0)
     A_i = K.cast(A_i, dtype='float32')
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            ) 
+    return loss
+
+
+def Masked_Mean_Absolute_Error_Simple_Sigmoid(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
     loss = K.mean(
                 K.sum(
                         K.abs(y_true - y_pred) * A_i,
@@ -211,6 +259,72 @@ def Masked_Root_Mean_Squared_Error(y_true, y_pred):
     upper_boundary = K.cast(upper_boundary, dtype='float32')
     interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
     return loss+interval_loss
+
+
+def Masked_Root_Mean_Squared_Error_Sigmoid(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            )
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
+
+
+def Masked_Root_Mean_Squared_Error_Simple(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            ) 
+    return loss
+
+
+def Masked_Root_Mean_Squared_Error_Simple_Sigmoid(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            ) 
+    return loss
 
 
 def berHu(c):
@@ -338,6 +452,7 @@ if __name__ == "__main__":
     Parser.add_argument("--sgd_momentum", type=str, default=None, help="Only works when using SGD optimizer: Not specified/'None': no momentum, 'normal': momentum with value from --sgd_momentum_value, 'nesterov': Use nesterov momentum with value from --sgd_momentum_value.")
     Parser.add_argument("--sgd_momentum_value", type=float, default=0.9, help="Only works when using SGD optimizer: Momentum value for SGD optimizer. Enable by using --sgd_momentum. Defaults to 0.9")
     Parser.add_argument("-l", "--loss", type=str, default="MMAE_simple", help="Loss function to utilize. Either MMAE MMAE_simple or MRMSE. Defaults to MMAE_simple")
+    Parser.add_argument("--output_sigmoid_activation", type=str, default="", help="Adds an sigmoid activation function to the output layer. The provided argument defines whether the ground truth is scaled to also fit this interval ('scale_input') or if the predictions get scaled in the loss function ('scale_output'). Defaults to '' (no sigmoid activation function added)")
     args = Parser.parse_args()
     
     # training directory specified?
@@ -371,18 +486,39 @@ if __name__ == "__main__":
         
     loss_func = None
     loss = args.loss.lower()
+    output_sigmoid_activation = args.output_sigmoid_activation.lower()
     if loss == "mrmse":
-        print("Using masked-root-mean-squared-error loss function")
-        loss_func = Masked_Root_Mean_Squared_Error
+        if output_sigmoid_activation == 'scale_output':
+            print('Using masked-root-mean-squared-error sigmoid loss function')
+            loss_func = Masked_Root_Mean_Squared_Error_Sigmoid
+        else:
+            print("Using masked-root-mean-squared-error loss function")
+            loss_func = Masked_Root_Mean_Squared_Error
     elif loss == "mmae":
-        print("Using masked-mean-absolute-error loss function")
-        loss_func = Masked_Mean_Absolute_Error
+        if output_sigmoid_activation == 'scale_output':
+            print('Using masked-mean-absolute-error sigmoid loss function')
+            loss_func = Masked_Mean_Absolute_Error_Sigmoid
+        else:
+            print("Using masked-mean-absolute-error loss function")
+            loss_func = Masked_Mean_Absolute_Error
     elif loss == 'mmae_simple':
-        print("Using simple masked-mean-absolute-error loss function")
-        loss_func = Masked_Mean_Absolute_Error_Simple
+        if output_sigmoid_activation == 'scale_output':
+            print('Using masked-mean-absolute-error simple sigmoid loss function')
+            loss_func = Masked_Mean_Absolute_Error_Simple_Sigmoid
+        else:
+            print("Using masked-mean-absolute-error simple loss function")
+            loss_func = Masked_Mean_Absolute_Error_Simple
+    elif loss == 'mrmse_simple':
+        if output_sigmoid_activation == 'scale_output':
+            print('Using masked-root-mean-squared-error simple sigmoid loss function')
+            loss_func = Masked_Root_Mean_Squared_Error_Simple_Sigmoid
+        else:
+            print('Using masked-root-mean-squared-error simple loss function')
+            loss_func = Masked_Root_Mean_Squared_Error_Simple
     else:
-        print("Provided loss function is invalid. Defaulting to MMAE")
-        loss_func = Masked_Mean_Absolute_Error
+        print("Provided loss function is invalid. Defaulting to MMAE_simple with no sigmoid")
+        loss_func = Masked_Mean_Absolute_Error_Simple
+        output_sigmoid_activation = ''
         
     # skip connection 0 arguments
     s0_arg = args.skip_0.lower()
@@ -439,13 +575,18 @@ if __name__ == "__main__":
             exit()
     else:
         optimizer = args.optimizer
-        
+    
+    scale_ground_truth = False
+    if output_sigmoid_activation == 'scale_output':
+        scale_ground_truth = True
+    
     training_generator = DataGenerator(
             path_to_data_set=os.path.join(args.train, 'train'),
             batch_size=args.batch_size,
             image_size=(480,640),
             shuffle=not args.no_shuffle,
-            scale_images=not args.no_scale
+            scale_images=not args.no_scale,
+            scale_ground_truth=scale_ground_truth
         )
 
     validation_generator = None
@@ -455,7 +596,8 @@ if __name__ == "__main__":
                 batch_size=args.batch_size,
                 image_size=(480,640),
                 shuffle=not args.no_shuffle,
-                scale_images=not args.no_scale
+                scale_images=not args.no_scale,
+                scale_ground_truth=scale_ground_truth
             )
         print("Using validation data")
     else:
@@ -570,14 +712,17 @@ if __name__ == "__main__":
             z = vgg.Block(number_of_layers=2, units=4, kernel_size=(3,3), padding="same", activation="relu", use_bn=not args.omit_batchnorm, momentum_bn=args.momentum)(z)
 
     # output layer
-    z = Conv2D(1, kernel_size=(3,3), padding="same", name="Conv_Output")(z)
+    if output_sigmoid_activation == '':
+        z = Conv2D(1, kernel_size=(3,3), padding="same", name="Conv_Output")(z)
+    else:
+        z = Conv2D(1, kernel_size=(3,3), padding="same", activation='sigmoid', name="Conv_Output")(z)
 
     model = Model(inputs=[x.input, y.input], outputs=z)
 
     model.compile(
             optimizer=optimizer,
             loss=loss_func,
-            metrics=['mae', 'mse', Masked_Mean_Absolute_Error, Masked_Root_Mean_Squared_Error, "accuracy", berHu(0.2)])
+            metrics=['mae', 'mse', Masked_Mean_Absolute_Error, Masked_Root_Mean_Squared_Error, "accuracy", berHu(0.2), Masked_Mean_Absolute_Error_Simple])
     
     hist = model.fit_generator(
            generator=training_generator,

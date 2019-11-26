@@ -12,7 +12,6 @@ if not sys.warnoptions:
 import os
 from keras.models import load_model
 import keras.backend as K
-import cv2
 from pathlib import Path
 import numpy as np
 import argparse
@@ -60,6 +59,63 @@ def Masked_Mean_Absolute_Error(y_true, y_pred):
     return loss+interval_loss
 
 
+def Masked_Mean_Absolute_Error_Sigmoid(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            )
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
+
+
+def Masked_Mean_Absolute_Error_Simple(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            ) 
+    return loss
+
+
+def Masked_Mean_Absolute_Error_Simple_Sigmoid(y_true, y_pred):
+    '''Masked mean absolut error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    loss = K.mean(
+                K.sum(
+                        K.abs(y_true - y_pred) * A_i,
+                        axis=(1,2,3)
+                     )
+                /
+                K.sum(A_i, axis=(1,2,3))
+            ) 
+    return loss
+
+
 def Masked_Root_Mean_Squared_Error(y_true, y_pred):
     '''Masked root mean squared error custom loss function'''
     # create binary artifact maps from ground truth depth maps
@@ -82,6 +138,72 @@ def Masked_Root_Mean_Squared_Error(y_true, y_pred):
     upper_boundary = K.cast(upper_boundary, dtype='float32')
     interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
     return loss+interval_loss
+
+
+def Masked_Root_Mean_Squared_Error_Sigmoid(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            )
+    lower_boundary = K.less(y_pred, 0)
+    lower_boundary = K.cast(lower_boundary, dtype='float32')
+    upper_boundary = K.greater(y_pred, 65535)
+    upper_boundary = K.cast(upper_boundary, dtype='float32')
+    interval_loss = K.sum(lower_boundary * 10000 + upper_boundary * 10000)   
+    return loss+interval_loss
+
+
+def Masked_Root_Mean_Squared_Error_Simple(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            ) 
+    return loss
+
+
+def Masked_Root_Mean_Squared_Error_Simple_Sigmoid(y_true, y_pred):
+    '''Masked root mean squared error custom loss function'''
+    # create binary artifact maps from ground truth depth maps
+    A_i = K.greater(y_true, 0)
+    A_i = K.cast(A_i, dtype='float32')
+    # Since we are using a sigmoid activation function, scale the predictions from [0,1] to [0,65535]
+    y_pred = y_pred * 65535
+    # original K.sqrt(K.mean(K.square(y_true - y_pred)))
+    loss = K.sqrt(
+            K.mean(
+                    K.sum(
+                            K.square(y_true - y_pred) * A_i,
+                            axis=(1,2,3)
+                         )
+                    /
+                    K.sum(A_i, axis=(1,2,3))
+                  )
+            ) 
+    return loss
 
 
 def berHu(c):
@@ -158,6 +280,7 @@ class DepthPredictor:
         '''Predicts a single depth image from given color and infrared input. Ground truth depth map is optional.'''
         self.image_write_counter = 1
         color = cv2.imread(input_color, cv2.IMREAD_COLOR)
+        color = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
         color_original = color.copy()
         infrared = cv2.imread(input_infrared, cv2.IMREAD_ANYDEPTH)
         infrared_original = infrared.copy()
@@ -604,6 +727,7 @@ class DepthPredictor:
         batch_size = len(batch)
         for file in batch:
             img_c = cv2.imread(os.path.join(path_color, file+'.jpg'), cv2.IMREAD_COLOR)
+            img_c = cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)
             img_i = cv2.imread(os.path.join(path_infrared, file+'.png'), cv2.IMREAD_ANYDEPTH)
             img_d = cv2.imread(os.path.join(path_depth, file+'.png'), cv2.IMREAD_ANYDEPTH)
             color_original.append(img_c)
