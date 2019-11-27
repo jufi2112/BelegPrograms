@@ -57,7 +57,7 @@ _**Requirements:**_
 
 _**Command Line Arguments:**_
 
-| Argument   | Link   |
+| Argument   | Description   |
 |------------|--------|
 | -f, --folder   | If multiple depth images should be predicted, the color and infrared images, along with optional ground truth depth images, should be placed in a folder with subfolders 'Color', 'Infrared' and optionally 'Depth'. This is the path to this folder   |
 | -c, --color   | If only a single depth image should be predicted, this is the corresponding color image   |
@@ -74,3 +74,25 @@ _**Command Line Arguments:**_
 | --depth_scale_text   | Text file containing depth scale of the utilized depth camera. Alternatively, use --depth_scale_value to directly provide a float   |
 | --depth_scale_value   | Depth scale of the utilized depth camera. Alternatively, provide text file containing this scale with --depth_scale_text   |
 
+## Visualization/PredictionPipeline.py
+_**Description:**_ Used to predict depth images from a streaming RealSense depth camera or a prerecorded `rosbag` file. Additionally, a colorization of the predicted depth image is done (at the moment poorly). Note that the currently trained models are not fast enough to predict images in real time with a reasonable frame rate. The current implementation was not tested with a live streaming camera.
+
+_**Requirements:**_ 
+
+| Package    | Link   |
+|------------|------|
+| Numpy      |  [link](https://anaconda.org/anaconda/numpy)    |
+| Keras      |  [link](https://anaconda.org/conda-forge/keras)    |
+| pyrealsense2   |  [link](https://pypi.org/project/pyrealsense2/)    |
+| argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
+| OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
+
+_**Command Line Arguments:**_
+
+| Argument   | Description   |
+|------------|---------------|
+| -p, --playback_path   | Path to a recorded sequence that should be predicted. Defaults to None (i.e. streaming configuration)   |
+| --no_realtime   | Disables real time mode. Currently does nothing   |
+| -m, --model   | Path to model that should be utilized for predictions   |
+| --scale_output   | Scale the output of the network   |
+| --no_clip   | Don't clip the output predictions to [0,65535]. Should not be utilized, since values outside of [0,65535] will under/overflow   |
