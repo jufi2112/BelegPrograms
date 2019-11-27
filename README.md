@@ -1,6 +1,6 @@
 # Programs written for my Beleg "Learning Depth Estimation from RGB and Infrared Input"
 This repository contains all programs I've written for my "Großer Beleg" at the Technische Universität Dresden.
-Languages utilized are `Python` (3.6) and `C++`. This documentation lists all important programs as well as their usage and requirements / dependencies.
+Languages utilized are `Python` (3.6) and `C++`. This documentation lists all important programs as well as their usage and requirements / dependencies. In general, the programs should be commented in a way that allows understanding them. Command line arguments can always be viewed by using `python Program.py --help`
 
 ## Learning/Model_VGG_Style.py
 _**Description:**_ This python script contains the network architecture of the trained model. Input images are loaded with a custom data generator. Trains the model and creates a plot for the learning rate schedule. It also saves the training history as `pickle` file and the final model as `.h5` file.
@@ -15,7 +15,7 @@ _**Requirements:**_
 | argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
 | OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
 
-_**Command Line Arguments:**_ It is also possible to use the --help parameter to get a list containing all command line arguments
+_**Command Line Arguments:**_
 
 | Argument   | Description   |
 |------------|---------------|
@@ -37,3 +37,40 @@ _**Command Line Arguments:**_ It is also possible to use the --help parameter to
 | --output_sigmoid_activation   | Adds an sigmoid activation function to the output layer. The provided argument defines whether the ground truth is scaled to also fit this interval ('scale_input') or if the predictions get scaled in the loss function ('scale_output'). Defaults to '' (no sigmoid activation function added)   |
 | --no_shuffle   | Disables shuffling of batches for each epoch   |
 | --no_scale   | Disables scaling of input images to the range of [0,1]   |
+
+## Visualization/DepthPredictor.py
+_**Description:**_ Predicts a depth image for the provided images (see command line arguments). Outputs:
+* Histograms of inputs and predictions (at the moment quite ugly)
+* Colorization attempts for the predicted depth image (at the moment quite ugly)
+* Difference Image, indicating if the prediction deviates more than a specified threshold from the ground truth (see command line arguments)
+* Unprocessed* predicted depth image (* only clipped to [0,65535])
+
+_**Requirements:**_
+
+| Package    | Link   |
+|------------|------|
+| Numpy      |  [link](https://anaconda.org/anaconda/numpy)    |
+| Keras      |  [link](https://anaconda.org/conda-forge/keras)    |
+| Matplotlib |  [link](https://anaconda.org/conda-forge/matplotlib)    |
+| argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
+| OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
+
+_**Command Line Arguments:**_
+
+| Argument   | Link   |
+|------------|--------|
+| -f, --folder   | If multiple depth images should be predicted, the color and infrared images, along with optional ground truth depth images, should be placed in a folder with subfolders 'Color', 'Infrared' and optionally 'Depth'. This is the path to this folder   |
+| -c, --color   | If only a single depth image should be predicted, this is the corresponding color image   |
+| -i, --infrared   | If only a single depth image should be predicted, this is the corresponding infrared image.   |
+| -g, --ground_truth   | If only a single depth image should be predicted, this is the corresponding ground truth depth image. Can be ignored if no ground truth is available   |
+| -b, --batch_size   | When multiple depth images should be predicted, this is the batch size that should be utilized while predicting   |
+| -m, --model   | Path to the model that should be utilized for predicting depth images   |
+| -o, --output   | Path to where the predicted images should be saved to   |
+| --no_scaling   | Don't scale the input images to the range [0,1]   |
+| --default_loss | Use the default mean absolute error loss funtion. Should not be utilized   |
+| -t, --threshold_offset   | Offset for depth image normalization. Defaults to 2000. Only utilized if ground truth is given   |
+| --old_model   | For old models, the loss function was called binary mean absolut error. Activate this if an 'Unknown loss function' error is thrown. Should not be utilized   |
+| -d, --difference_threshold   | Utilized for difference visualization of ground truth and prediction. Maximum difference between ground truth and prediction in meters which is considered ok. Defaults to 0.05  |
+| --depth_scale_text   | Text file containing depth scale of the utilized depth camera. Alternatively, use --depth_scale_value to directly provide a float   |
+| --depth_scale_value   | Depth scale of the utilized depth camera. Alternatively, provide text file containing this scale with --depth_scale_text   |
+
