@@ -3,7 +3,8 @@ This repository contains all programs I've written for my "Großer Beleg" at the
 Languages utilized are `Python` (3.6) and `C++`. This documentation lists all important programs as well as their usage and requirements / dependencies.
 
 ## Learning/Model_VGG_Style.py
-_**Description:**_ This python script contains the network architecture of the trained model. To train 
+_**Description:**_ This python script contains the network architecture of the trained model. Input images are loaded with a custom data generator. Trains the model and creates a plot for the learning rate schedule. It also saves the training history as `pickle` file and the final model as `.h5` file.
+
 _**Requirements:**_
 
 | Package    | Link   |
@@ -24,7 +25,7 @@ _**Command Line Arguments:**_ It is also possible to use the --help parameter to
 | -e, --epochs   | Number of epochs to train the network on   |
 | -o, --optimizer   | The optimizer to utilize for training. Supported are SGD, Adam and RMSprop   |
 | -l, --loss   | Loss function to utilize. Either MMAE, MMAE_simple, MRMSE or MRMSE_simple. Defaults to MMAE_simple  |
-| -p, --periods   | Number of epochs after which to save the current model (and its weights). 1 means every epoch   |
+| -p, --periods   | Number of epochs after which to save the current model (and its weights). 1 means every epoch. Currently disabled due to bug that freezes the training process on Taurus.   |
 | -d, --decay   | Reduce learning rate after every x epochs. Defaults to 10   |
 | -f, --factor_decay   | Factor to reduce the learning rate. Defaults to 0.5   |
 | --default_optimizers   | Enable all keras optimizers, not only SGD, Adam and RMSprop. This will deactivate learning rate decay   |
