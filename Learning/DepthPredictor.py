@@ -237,7 +237,16 @@ class DepthPredictor:
                     loss_name="Binary_Mean_Absolut_Error"
                 else:
                     loss_name="Masked_Mean_Absolute_Error"
-                return load_model(path, custom_objects={loss_name: Masked_Mean_Absolute_Error, 'inverse_huber':berHu(0.2), 'Masked_Root_Mean_Squared_Error':Masked_Root_Mean_Squared_Error})
+                return load_model(path, custom_objects={loss_name: Masked_Mean_Absolute_Error, 
+                                                        'Masked_Mean_Absolute_Error':Masked_Mean_Absolute_Error,
+                                                        'Masked_Mean_Absolute_Error_Simple':Masked_Mean_Absolute_Error_Simple, 
+                                                        'Masked_Mean_Absolute_Error_Simple_Sigmoid':Masked_Mean_Absolute_Error_Simple_Sigmoid,
+                                                        'Masked_Mean_Absolute_Error_Sigmoid':Masked_Mean_Absolute_Error_Sigmoid,
+                                                        'Masked_Root_Mean_Squared_Error':Masked_Root_Mean_Squared_Error,
+                                                        'Masked_Root_Mean_Squared_Error_Simple':Masked_Root_Mean_Squared_Error_Simple,
+                                                        'Masked_Root_Mean_Squared_Error_Simple_Sigmoid':Masked_Root_Mean_Squared_Error_Simple_Sigmoid,
+                                                        'Masked_Root_Mean_Squared_Error_Sigmoid':Masked_Root_Mean_Squared_Error_Sigmoid,
+                                                        'inverse_huber':berHu(0.2)})
             else:
                 return load_model(path)
         else:

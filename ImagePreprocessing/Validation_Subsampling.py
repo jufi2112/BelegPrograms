@@ -63,3 +63,5 @@ if __name__ == '__main__':
         exit()
         
     Subsample(args.folder_input, args.color, args.infrared, args.depth, args.subsample, args.output)
+    
+    print('Subsampling finished!')
