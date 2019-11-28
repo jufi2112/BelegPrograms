@@ -96,3 +96,22 @@ _**Command Line Arguments:**_
 | -m, --model   | Path to model that should be utilized for predictions   |
 | --scale_output   | Scale the output of the network   |
 | --no_clip   | Don't clip the output predictions to [0,65535]. Should not be utilized, since values outside of [0,65535] will under/overflow   |
+
+## ImagePreprocessing/BadReading.py
+_**Description:**_ This script demonstrates how to read frames from a recorded `rosbag` file in Python. To actually execute the script, uncomment the respective lines in the script.
+
+_**Requirements:**_ 
+
+| Package    | Link   |
+|------------|------|
+| Numpy      |  [link](https://anaconda.org/anaconda/numpy)    |
+| pyrealsense2   |  [link](https://pypi.org/project/pyrealsense2/)    |
+| argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
+| OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
+
+_**Command Line Arguments:**_
+
+| Argument   | Description   |
+|------------|---------------|
+| -i, --input   | Path the ROSBAG file that should be read in   |
+
