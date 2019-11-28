@@ -529,7 +529,7 @@ class DepthPredictor:
             ground_truth = None
             if ground_truth_normalized is not None and ground_truth_colorized is not None:
                 ground_truth = np.concatenate((cv2.cvtColor(ground_truth_normalized[idx], cv2.COLOR_GRAY2BGR), ground_truth_colorized[idx]), axis=0)
-            inp = np.concatenate((color[idx], infrared_colorized[idx]), axis=0)
+            inp = np.concatenate((cv2.cvtColor(color[idx], cv2.COLOR_RGB2BGR), infrared_colorized[idx]), axis=0)
             
             comb = None
             if ground_truth is not None:
