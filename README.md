@@ -175,3 +175,23 @@ _**Command Line Arguments:**_
 | -1, --skip_test   | The first scene that should not be sampled from. This scene will be used as test data   |
 | -2, --skip_validation   | The second scene that should not be sampled from. This scene will be used as validation data   |
 
+## ImagePreprocessing/Validation_Subsampling.py
+_**Description:**_ Utilized to subsample images that are already exctracted from rosbag files and lie inside a folder structure with subfolders `Color`, `Infrared` and `Depth`.
+
+_**Requirements:**_
+
+| Package    | Link   |
+|------------|------|
+| argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
+| pathlib   | [link](https://anaconda.org/menpo/pathlib)   |
+
+_**Command Line Arguments:**_
+
+| Argument   | Description   |
+|------------|---------------|
+| -f, --folder_input   | The original folder whos images should be subsampled   |
+| -o, --output   | The location where the subsampled files should be placed   |
+| -s, --subsample   | The subsampling factor. Defaults to 10   |
+| -c, --color   | Name of the folder that contains the color images. Defaults to 'Color'   |
+| -i, --infrared   | Name of the folder that contains the infrared images. Defaults to 'Infrared'   |
+| -d, --depth   | Name of the folder that contains the depth images. Defaults to 'Depth'   |
