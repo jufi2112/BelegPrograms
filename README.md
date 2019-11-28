@@ -115,3 +115,14 @@ _**Command Line Arguments:**_
 |------------|---------------|
 | -i, --input   | Path the ROSBAG file that should be read in   |
 
+## Visualization/Depth_Colorizer.ipynb
+_**Description:**_ IPython Notebook that demonstrates how a 16-bit depth image can be colorized using OpenCV.
+
+_**Requirements:**_ 
+
+| Package    | Link   |
+|------------|------|
+| Numpy      |  [link](https://anaconda.org/anaconda/numpy)    |
+| Matplotlib |  [link](https://anaconda.org/conda-forge/matplotlib)    | 
+| OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
+
