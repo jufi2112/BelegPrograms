@@ -126,3 +126,26 @@ _**Requirements:**_
 | Matplotlib |  [link](https://anaconda.org/conda-forge/matplotlib)    | 
 | OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
 
+## ImagePreprocessing/ImagePreprocessing.py
+_**Description:**_ This script is used to read frames from recorded `rosbag` files, apply preprocessing to them and save them in a folder structure that can be used for training the network. Execution of this script on a large file can take quite some time. There is also a `C++` script for this task, which is marginally faster.
+
+_**Requirements:**_
+
+| Package    | Link   |
+|------------|------|
+| Numpy      |  [link](https://anaconda.org/anaconda/numpy)    |
+| pyrealsense2   |  [link](https://pypi.org/project/pyrealsense2/)    |
+| argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
+| OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
+| Tqdm   | [link](https://anaconda.org/conda-forge/tqdm)   |
+| pathlib   | [link](https://anaconda.org/menpo/pathlib)   |
+
+_**Command Line Arguments:**_
+
+| Argument   | Description   |
+|------------|---------------|
+| -i, --input   | Path to main folder that contains subfolders 'Outdoor_Lighting' and 'Indoor_Lighting' which contain the recorded bag files   |
+| -o, --output   | Path where the included images should be saved to   |
+| -d, --decimation   | Decimation filter magnitude. Values of 2 and 3 perform median downsampling, values greater than 3 perform mean downsampling. Should be 1 if no decimation operation should be done   |
+| -s, --skip   | Should scenes that already exist in the output location be skipped. Default is False. If activated, \_Part_2.bag files will not be considered. This can also be used to only process .bag files that are not yet processed   |
+| -v, --verbose   | Verbosity settings. 0 - no extra messages. 1 - basic debug messages. 2 - additional runtime messages   |
