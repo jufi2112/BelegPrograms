@@ -216,3 +216,10 @@ _**Description:**_ `C++` program that polls frames from a recorded `rosbag` file
 _**Requirements:**_ librealsense2 and OpenCV
 
 _**Command Line Arguments:**_ [bag file] [decimation filter magnitude] [hole filling filter magnitude] [show non visualized depth images] 
+
+## Camera/RealSenseSR300
+_**Description:**_ `C++` program that demonstrats polling of frames from a streaming RealSense device. Colorizes the depth map and optionally saves the sampled frames.
+
+_**Requirements:**_ librealsense2 and OpenCV
+
+_**Command Line Arguments:**_ [save directory] [should images be saved] 
