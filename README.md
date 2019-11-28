@@ -149,3 +149,29 @@ _**Command Line Arguments:**_
 | -d, --decimation   | Decimation filter magnitude. Values of 2 and 3 perform median downsampling, values greater than 3 perform mean downsampling. Should be 1 if no decimation operation should be done   |
 | -s, --skip   | Should scenes that already exist in the output location be skipped. Default is False. If activated, \_Part_2.bag files will not be considered. This can also be used to only process .bag files that are not yet processed   |
 | -v, --verbose   | Verbosity settings. 0 - no extra messages. 1 - basic debug messages. 2 - additional runtime messages   |
+
+## ImagePreprocessing/Image_Subsampling.py
+_**Description:**_ Slightly modified version of Visualization/ImagePreprocessing.py. This script takes into account that only every x-th frame should be sampled from the `rosbag` files. It is also possible to define two files that should not be sampled from (for validation and test set).
+
+_**Requirements:**_
+
+| Package    | Link   |
+|------------|------|
+| Numpy      |  [link](https://anaconda.org/anaconda/numpy)    |
+| pyrealsense2   |  [link](https://pypi.org/project/pyrealsense2/)    |
+| argparse   |  [link](https://anaconda.org/anaconda/argparse)    |
+| OpenCV     |  [link](https://anaconda.org/conda-forge/opencv)    |
+| Tqdm   | [link](https://anaconda.org/conda-forge/tqdm)   |
+| pathlib   | [link](https://anaconda.org/menpo/pathlib)   |
+
+_**Command Line Arguments:**_
+
+| Argument   | Description   |
+|------------|---------------|
+| -i, --input   | Path to main folder that contains subfolders 'Outdoor_Lighting' and 'Indoor_Lighting' which contain the recorded bag files   |
+| -o, --output   | Path where the included images should be saved to   |
+| -s, --subsample   | The subsampling rate   |
+| -v, --verbose   | Verbosity settings. 0 - no extra messages. 1 - basic debug messages. 2 - additional runtime messages   |
+| -1, --skip_test   | The first scene that should not be sampled from. This scene will be used as test data   |
+| -2, --skip_validation   | The second scene that should not be sampled from. This scene will be used as validation data   |
+
