@@ -201,11 +201,18 @@ _**Description:**_ `C++` program that demonstrates how to extract frames from a 
 
 _**Requirements:**_ librealsense2 and OpenCV
 
-_**Command Line Arguments:**_ main [path to bag file] [Align to depth]
+_**Command Line Arguments:**_ [path to bag file] [Align to depth]
  
 ## ImagePreprocessing/DataExplorationArtifacts
 _**Description:**_ `C++` program that polls frames from a recorded `rosbag` file. It applies preprocessing to the frames and counts the artifacts that remain in the filtered images.
 
 _**Requirements:**_ librealsense2 and OpenCV
 
-_**Command Line Arguments:**_ main [bag file] [filter option]
+_**Command Line Arguments:**_ [bag file] [filter option]
+
+## Camera/RealSensePlayback
+_**Description:**_ `C++` program that polls frames from a recorded `rosbag` file. Applies preprocessing to the frames. 
+
+_**Requirements:**_ librealsense2 and OpenCV
+
+_**Command Line Arguments:**_ [bag file] [decimation filter magnitude] [hole filling filter magnitude] [show non visualized depth images] 
