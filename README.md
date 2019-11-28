@@ -176,7 +176,7 @@ _**Command Line Arguments:**_
 | -2, --skip_validation   | The second scene that should not be sampled from. This scene will be used as validation data   |
 
 ## ImagePreprocessing/Validation_Subsampling.py
-_**Description:**_ Utilized to subsample images that are already exctracted from rosbag files and lie inside a folder structure with subfolders `Color`, `Infrared` and `Depth`.
+_**Description:**_ Utilized to subsample images that are already exctracted from rosbag files and lie inside a folder structure with subfolders `Color`, `Infrared` and `Depth`. Despite the name, this script is _not_ exclusive to validation subsampling.
 
 _**Requirements:**_
 
@@ -195,3 +195,10 @@ _**Command Line Arguments:**_
 | -c, --color   | Name of the folder that contains the color images. Defaults to 'Color'   |
 | -i, --infrared   | Name of the folder that contains the infrared images. Defaults to 'Infrared'   |
 | -d, --depth   | Name of the folder that contains the depth images. Defaults to 'Depth'   |
+
+## ImagePreprocessing/AlignExample
+_**Description:**_ `C++` program that demonstrates how to extract frames from a `rosbag` file and colorize the depth frame. Optionally, the depth frame can be aligned to the color image.
+
+_**Requirements:**_ librealsense2 and OpenCV
+
+_**Command Line Arguments:**_ main.cpp <path to bag file> [Align to depth]
