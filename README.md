@@ -97,7 +97,7 @@ _**Command Line Arguments:**_
 | --scale_output   | Scale the output of the network   |
 | --no_clip   | Don't clip the output predictions to [0,65535]. Should not be utilized, since values outside of [0,65535] will under/overflow   |
 
-## ImagePreprocessing/BadReading.py
+## ImagePreprocessing/BagReading.py
 _**Description:**_ This script demonstrates how to read frames from a recorded `rosbag` file in Python. To actually execute the script, uncomment the respective lines in the script.
 
 _**Requirements:**_ 
