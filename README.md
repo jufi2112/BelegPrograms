@@ -25,7 +25,7 @@ _**Command Line Arguments:**_
 | -e, --epochs   | Number of epochs to train the network on   |
 | -o, --optimizer   | The optimizer to utilize for training. Supported are SGD, Adam and RMSprop   |
 | -l, --loss   | Loss function to utilize. Either MMAE, MMAE_simple, MRMSE or MRMSE_simple. Defaults to MMAE_simple  |
-| -p, --periods   | Number of epochs after which to save the current model (and its weights). 1 means every epoch. Currently disabled due to bug that freezes the training process on Taurus.   |
+| -p, --periods   | Number of epochs after which to save the current model (and its weights). 1 means every epoch. Currently disabled due to a bug that freezes the training process on Taurus.   |
 | -d, --decay   | Reduce learning rate after every x epochs. Defaults to 10   |
 | -f, --factor_decay   | Factor to reduce the learning rate. Defaults to 0.5   |
 | --default_optimizers   | Enable all keras optimizers, not only SGD, Adam and RMSprop. This will deactivate learning rate decay   |
@@ -37,6 +37,8 @@ _**Command Line Arguments:**_
 | --output_sigmoid_activation   | Adds an sigmoid activation function to the output layer. The provided argument defines whether the ground truth is scaled to also fit this interval ('scale_input') or if the predictions get scaled in the loss function ('scale_output'). Defaults to '' (no sigmoid activation function added)   |
 | --no_shuffle   | Disables shuffling of batches for each epoch   |
 | --no_scale   | Disables scaling of input images to the range of [0,1]   |
+
+_**Parameters for the proposed Final Model:**_ The proposed final model can be trained with the following command line arguments, assuming \<path_to_training_images\> is the path to the training data and \<output_directory\> contains the path where the output of the network should be saved to: `python Model_VGG_Style.py -t <path_to_training_images> -x <output_directory> -b 8 -e 100 -o sgd -l mmae_simple -d 10 -f 0.5 --sgd_momentum nesterov --sgd_momentum_value 0.8`. Learning/batch_script_training shows an example batch script that was used to start the training process on Taurus.
 
 ## Visualization/DepthPredictor.py
 _**Description:**_ Predicts a depth image for the provided images (see command line arguments). Outputs:
